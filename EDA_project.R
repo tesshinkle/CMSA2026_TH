@@ -32,11 +32,13 @@ wta_matches
 
 
 wta_matches2 = wta_2021_2026_matches |>
-  select(minutes:w_bpFaced) |>
+  select(minutes:w_bpFaced, winner_rank, winner_rank_points) |>
+  filter(winner_rank <=100)
   drop_na()
 wta_matches2
 
-
+ggplot(wta_matches2, aes(x = winner_rank, y = winner_rank_points)) + 
+  geom_point() 
 
 
 
