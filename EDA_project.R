@@ -14,3 +14,6 @@ wta_2021_2026_matches <-
           })
 
 view(wta_2021_2026_matches)
+
+str(wta_2021_2026_matches)
+summary(wta_2021_2026_matches)
