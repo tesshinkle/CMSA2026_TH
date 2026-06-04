@@ -22,5 +22,24 @@ summary(wta_2021_2026_matches)
 favstats(~winner_ht, data=wta_2021_2026_matches)
 
 cor(wta_2021_2026_matches[,c(4,6,7,8,13,15,16,21)])
+table(wta_2021_2026_matches$tourney_name)
+
+wta_matches = wta_2021_2026_matches |>
+  select(surface, winner_name, minutes, winner_ht, 
+         winner_hand,winner_age, best_of, round) |>
+  drop_na()
+wta_matches
+
+
+wta_matches2 = wta_2021_2026_matches |>
+  select(minutes:w_bpFaced) |>
+  drop_na()
+wta_matches2
+
+
+
+
+
+#cor(wta_2021_2026_matches[,c(4,6,7,8,13,15,16,21)])
 
 
