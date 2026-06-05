@@ -31,6 +31,7 @@ favstats(~loser_age, data=wta_2021_2026_matches)
 favstats(~w_ace, data = wta_2021_2026_matches)
 favstats(~l_ace,data = wta_2021_2026_matches)
 
+
 #several outliers in aces. potentially able to throw out aces > 40 
 wta_2021_2026_matches |>
   select(l_ace) |>
