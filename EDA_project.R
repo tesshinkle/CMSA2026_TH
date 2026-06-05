@@ -26,31 +26,25 @@ str(wta_2021_2026_matches)
 summary(wta_2021_2026_matches)
 
 favstats(~winner_ht, data=wta_2021_2026_matches)
+favstats(~winner_age, data = wta_2021_2026_matches)
+favstats(~loser_age, data=wta_2021_2026_matches)
+favstats(~w_ace, data = wta_2021_2026_matches)
+favstats(~l_ace,data = wta_2021_2026_matches)
 
-cor(wta_2021_2026_matches[,c(4,6,7,8,13,15,16,21)])
+#several outliers in aces. potentially able to throw out aces > 40 
+wta_2021_2026_matches |>
+  select(l_ace) |>
+  drop_na() |>
+  ggplot(aes(x = l_ace)) +
+  geom_boxplot()
+
+wta_2021_2026_matches |>
+  select(w_ace) |>
+  drop_na() |>
+  ggplot(aes(x = w_ace)) +
+  geom_boxplot()
+
 table(wta_2021_2026_matches$tourney_name)
-
-wta_matches = wta_2021_2026_matches |>
-  select(surface, winner_name, minutes, winner_ht, 
-         winner_hand,winner_age, best_of, round) |>
-  drop_na()
-wta_matches
-
-
-wta_matches2 = wta_2021_2026_matches |>
-  select(minutes:w_bpFaced, winner_rank, winner_rank_points) |>
-  drop_na()
-wta_matches2
-
-#negative exponenital or log function
-ggplot(wta_matches2, aes(x = winner_rank, y = winner_rank_points)) + 
-  geom_point() 
-
-
-model1 = lm(winner_rank_points~winner_rank, data= wta_2021_2026_matches)
-summary(model1)
-
-
 
 wta_2021_2026_matches = wta_2021_2026_matches |>
   mutate(surface = recode(tolower(surface),
@@ -68,20 +62,59 @@ wta_2021_2026_matches|>
   select(surface, winner_name, loser_name) |>
   drop_na() |>
   ggplot(aes(x = surface)) +
-  geom_bar(fill = "lightblue") + theme_bw() + coord_flip()
+  geom_bar(fill = "lightblue", col = "blue") + theme_bw() + coord_flip()
 
+class(wta_2021_2026_matches$tourney_level)
+
+#wta_2021_2026_matches |>
+#  select(surface,tourney_level,winner_name, loser_name) |>
+#  drop_na() |>
+#  count(surface) |>
+#  mutate(prop = n / sum(n)) |>
+#  ggplot(aes(x = prop, y = surface, fill = tourney_level)) +
+#  geom_col() + theme_bw()
+
+#creating new column with full tournament names
+wta_2021_2026_matches <- wta_2021_2026_matches |>
+  mutate(tournament = case_when(tourney_level == "O" ~ "Olympics", 
+                             tourney_level == "P" ~ "Premier",
+                             tourney_level == "PM" ~ "Premier Mandatory", 
+                             tourney_level == "I"~ "International",
+                             tourney_level == "G" ~ "Grand Slams", 
+                             tourney_level == "F" ~ "Tour Finals",
+                             tourney_level == "D" ~ "Bille Jean King Cup",
+                             tourney_level == "W" ~ "ITF Tournament",
+                             tourney_level == "35+H" ~ "ITF Tournament",
+                             tourney_level == "50+H" ~ "ITF Tournament")) |>
+  mutate(tournament = as.factor(tournament))
+
+
+wta_2021_2026_matches |> 
+  select(surface, tournament) |> 
+  table() |> 
+  prop.table()
+
+#visualization for tournament levels and surfaces used
 wta_2021_2026_matches |>
-  select(surface,tourney_level,winner_name, loser_name) |>
+  select(surface, tournament) |>
   drop_na() |>
-  count(surface) |>
-  mutate(prop = n / sum(n)) |>
-  ggplot(aes(x = prop, y = surface, fill = tourney_level)) +
-  geom_col() + theme_bw()
-
-ggplot(wta_2021_2026_matches, aes(x = w_ace, y = l_ace)) + geom_point()
+  ggplot(aes(x = tournament, fill = surface)) +
+  geom_bar(col = "black") +
+  labs(x= "Tournament Level", y = "") + 
+  theme(axis.text.x = element_text(angle = 45, 
+                                   vjust = 1, hjust = 1))
 
 chisq.test(table(wta_2021_2026_matches$surface))
 #Reject null hypothesis, significantly different proportion in types of surfaces played on.
+
+chisq.test(table(wta_2021_2026_matches$surface, wta_2021_2026_matches$tourney_level))
+#reject null hypothesis, significantly different proportion between surfaces and tourney level
+
+wta_2021_2026_matches |> 
+  select(surface, tourney_level) |> 
+  table() |> 
+  chisq.test()
+
 
 levels(wta_2021_2026_matches$tourney_level)
 
