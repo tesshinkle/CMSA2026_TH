@@ -85,9 +85,10 @@ wta_2021_2026_matches|>
 
 # Does players ranking difference affect the length of the game?
 
-wta_2021_2026_matches |>
-  select(surface, minutes, winner_rank, loser_rank) |>
+view(wta_2021_2026_matches |>
+  select(surface, minutes, winner_rank, loser_rank, tourney_name, round ) |>
   mutate(rank_difference = loser_rank - winner_rank) |>
+  filter(rank_difference<(-50), round==c("SF","F", "QF"))) |>
   filter(!is.na(surface), !is.na(minutes), !is.na(rank_difference), rank_difference<300, rank_difference>0, minutes>0, minutes<300) |>
   ggplot(aes(x=minutes, y= rank_difference)) +
   geom_point(color = "navy", size = 1, alpha = 0.5)+
@@ -123,13 +124,6 @@ wta_2021_2026_matches |>
 
 
 table(wta_2021_2026_matches$surface)
-
-
-
-
-
-
-
 
 
 
@@ -180,6 +174,8 @@ ace_data |>
 
 aov(total_aces ~ surface, data = ace_data)|>
 summary()
+
+
 
 
 
