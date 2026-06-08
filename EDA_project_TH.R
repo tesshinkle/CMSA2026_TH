@@ -26,6 +26,7 @@ view(wta_2021_2026_matches)
 str(wta_2021_2026_matches)
 summary(wta_2021_2026_matches)
 
+#getting simple stats of various variables
 favstats(~winner_ht, data=wta_2021_2026_matches)
 favstats(~winner_age, data = wta_2021_2026_matches)
 favstats(~loser_age, data=wta_2021_2026_matches)
@@ -46,10 +47,18 @@ wta_2021_2026_matches |>
   ggplot(aes(x = w_ace)) +
   geom_boxplot()
 
+wta_2021_2026_matches |>
+  select(w_ace) |>
+  drop_na() |>
+  ggplot(aes(x = w_ace)) +
+  geom_histogram()
+
 table(wta_2021_2026_matches$tourney_name)
 
+#combining the two clays
+#dplyr:: used due to an error from a potential other package used
 wta_2021_2026_matches = wta_2021_2026_matches |>
-  mutate(surface = recode(tolower(surface),
+  mutate(surface = dplyr::recode(tolower(surface), 
                           "Clay" = "clay")) |>
   mutate(surface = as.factor(surface))
 
@@ -60,6 +69,7 @@ levels(wta_2021_2026_matches$surface)
 prop.table(table(wta_2021_2026_matches$surface))
 table(wta_2021_2026_matches$surface)
 
+#bar chart of surfaces
 wta_2021_2026_matches|>
   select(surface, winner_name, loser_name) |>
   drop_na() |>
@@ -68,13 +78,6 @@ wta_2021_2026_matches|>
 
 class(wta_2021_2026_matches$tourney_level)
 
-#wta_2021_2026_matches |>
-#  select(surface,tourney_level,winner_name, loser_name) |>
-#  drop_na() |>
-#  count(surface) |>
-#  mutate(prop = n / sum(n)) |>
-#  ggplot(aes(x = prop, y = surface, fill = tourney_level)) +
-#  geom_col() + theme_bw()
 
 
 #creating new column with full tournament names
@@ -103,7 +106,7 @@ wta_2021_2026_matches |>
   drop_na() |>
   ggplot(aes(x = tournament, fill = surface)) +
   geom_bar(col = "black") +
-  labs(x= "Tournament Level", y = "") + 
+  labs(x= "Tournament Level", y = "") +
   theme(axis.text.x = element_text(angle = 45, 
                                    vjust = 1, hjust = 1))
 
@@ -117,3 +120,22 @@ wta_2021_2026_matches |>
   select(surface, tourney_level) |> 
   table() |> 
   chisq.test()
+
+#potential repeated measures anova for number of aces by surface level
+
+#looking at potential upsets (amount)
+
+wta_2021_2026_matches |>
+  select(surface, minutes, winner_rank, loser_rank, tournament, round) |>
+  mutate(rank_difference = loser_rank-winner_rank) |>
+  filter(rank_difference < -50) |>
+  filter(round == "SF" | round == "F" | round == "QF") |>
+  group_by(round) |>
+  ggplot(aes(x = rank_difference, y = round)) + 
+  geom_density_ridges(rel_min_height = 0.01) +
+  labs(title = "Frequency of Upsets among WTA matches")
+
+
+
+
+
