@@ -133,9 +133,7 @@ wta_2021_2026_matches |>
   group_by(round) |>
   ggplot(aes(x = rank_difference, y = round)) + 
   geom_density_ridges(rel_min_height = 0.01) +
-  labs(title = "Frequency of Upsets among WTA matches")
-
-
-
+  labs(title = "Frequency of Upsets among WTA matches", y = "Rounds (SF, QF, and F)",
+       x = "Difference in Rank between Winner and Loser")
 
 
