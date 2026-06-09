@@ -107,8 +107,9 @@ wta_2021_2026_matches |>
   ggplot(aes(x = tournament, fill = surface)) +
   geom_bar(col = "black") +
   labs(x= "Tournament Level", y = "") +
+  theme_bw() +
   theme(axis.text.x = element_text(angle = 45, 
-                                   vjust = 1, hjust = 1))
+                                   vjust = 1, hjust = 1)) 
 
 chisq.test(table(wta_2021_2026_matches$surface))
 #Reject null hypothesis, significantly different proportion in types of surfaces played on.
@@ -124,7 +125,7 @@ wta_2021_2026_matches |>
 #potential repeated measures anova for number of aces by surface level
 
 #looking at potential upsets (amount)
-
+require(ggridges)
 wta_2021_2026_matches |>
   select(surface, minutes, winner_rank, loser_rank, tournament, round) |>
   mutate(rank_difference = loser_rank-winner_rank) |>
@@ -133,6 +134,7 @@ wta_2021_2026_matches |>
   group_by(round) |>
   ggplot(aes(x = rank_difference, y = round)) + 
   geom_density_ridges(rel_min_height = 0.01) +
+  theme_bw() +
   labs(title = "Frequency of Upsets among WTA matches", y = "Rounds (SF, QF, and F)",
        x = "Difference in Rank between Winner and Loser")
 
@@ -168,7 +170,7 @@ ace_data |>
   )
 
 # Boxplot Visualization
-
+#distribution of aces by court surface
 ace_data |>
   filter(total_aces<30) |>
   ggplot(aes(x = total_aces, y = surface, fill = surface)) +
@@ -186,8 +188,11 @@ summary(aov(total_aces~surface, data = ace_data))
 #between subjects: each subject is measured once ( total_aces)
 #within subjects: each subject is measured many times (surfaces?)
 #error
-wta_2021_2026_matches |>
-  mutate(winner_name = as.factor(winner_name))
+wta_match = wta_2021_2026_matches |>
+  dplyr::select(winner_name, loser_name, w_ace, l_ace, surface) |>
+  drop_na() |>
+  pivot_longer( cols = c("winner_name", "loser_name"), 
+                names_to = "player" , values = "match_outcome")
 
 wta_aces = wta_2021_2026_matches |>
   group_by(winner_name, surface) |>
@@ -199,3 +204,51 @@ wta_aces = wta_2021_2026_matches |>
   arrange(desc(n))
 view(wta_aces)  
   
+
+#clustering 
+
+set.seed(47)
+
+wong_kmeans1 = wta_2021_2026_matches |> 
+  dplyr::select(w_bpFaced, w_bpSaved) |> 
+  drop_na() |>
+  kmeans(algorithm = "Hartigan-Wong", centers = 3,
+         nstart = 1, iter.max = 50)
+
+wta_2021_2026_matches |>
+  dplyr::select(w_bpFaced, w_bpSaved) |> 
+  drop_na() |>
+  mutate(
+    wta_clusters = as.factor(wong_kmeans1$cluster)
+  ) |>
+  ggplot(aes(x =  w_bpFaced, y = w_bpSaved,
+             color = wta_clusters)) +
+  geom_point(size = 2) + 
+  ggthemes::scale_color_colorblind() +
+  theme(legend.position = "bottom")
+
+#multipe variables clustering
+
+wta_match_features = wta_2021_2026_matches |>
+  select( w_svpt, w_1stIn, w_1stWon, w_2ndWon) |> 
+  drop_na() 
+#scaling volleyball features so you don't have to mutate everything individually
+std_wta_match_features = wta_match_features |> 
+  scale(center = TRUE, scale = TRUE)
+
+kmeans_many_features = std_wta_match_features |> 
+  kmeans(algorithm = "Hartigan-Wong", centers = 4, nstart = 50) 
+
+library(gt)
+#creating table of volleyball data
+wta_2021_2026_matches |>
+  select( w_svpt, w_1stIn, w_1stWon, w_2ndWon) |> 
+  drop_na() |>
+  mutate(wta_clusters = as.factor(kmeans_many_features$cluster)) |> 
+  pivot_longer(-wta_clusters, names_to = "feature", values_to = "value") |>
+  group_by(wta_clusters, feature) |>
+  summarize(avg_value = base::mean(value), .groups = "drop") |>
+  pivot_wider(id_cols = c(wta_clusters), names_from = feature, values_from = avg_value) |>
+  gt() |>
+  fmt_number( decimals = 2)
+
