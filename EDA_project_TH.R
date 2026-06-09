@@ -136,4 +136,66 @@ wta_2021_2026_matches |>
   labs(title = "Frequency of Upsets among WTA matches", y = "Rounds (SF, QF, and F)",
        x = "Difference in Rank between Winner and Loser")
 
+#looking at winner's number of aces vs number of defaults
+wta_2021_2026_matches |>
+  select(w_ace, w_df, l_ace, l_df) |>
+  #mutate(no_aces = pivot_longer(w_aces,l_aces = "aces", ))
+  ggplot(aes(x = ))
 
+# Is there more number of Aces in specific type of surface? 
+
+
+#Filtering datasets for ace/surface analysis
+ace_data <- wta_2021_2026_matches |>
+  filter(!is.na(surface),!is.na(w_ace), !is.na(l_ace)) |>
+  mutate(total_aces = w_ace + l_ace)
+
+
+#Distribution of Matches by Court Surface
+ace_data |>
+  count(surface) |>
+  mutate(prop = n / sum(n)) |>
+  ggplot(aes(x = surface, y = prop)) +
+  geom_col(fill="skyblue", col="blue", na.rm = TRUE) +
+  theme_bw()+
+  theme(axis.text.x = element_text(angle = 45,
+                                   vjust = 1, hjust = 1))+
+  scale_y_continuous(labels = scales::percent_format()) +
+  labs(
+    title = "Distribution of Matches by Court Surface",
+    x = "Court Surface",
+    y = "Percentage of Matches"
+  )
+
+# Boxplot Visualization
+
+ace_data |>
+  filter(total_aces<30) |>
+  ggplot(aes(x = total_aces, y = surface, fill = surface)) +
+  geom_boxplot(na.rm = TRUE) +
+  labs(title = "Distribution of Total Aces by Court Surface",
+       x = "Total Aces per Match", 
+       y = "Surface Type") +
+  theme_minimal() +
+  theme(legend.position = "none")
+
+summary(aov(total_aces~surface, data = ace_data))
+
+
+#repeated measures ANOVA?
+#between subjects: each subject is measured once ( total_aces)
+#within subjects: each subject is measured many times (surfaces?)
+#error
+wta_2021_2026_matches |>
+  mutate(winner_name = as.factor(winner_name))
+
+wta_aces = wta_2021_2026_matches |>
+  group_by(winner_name, surface) |>
+  summarise(mean_aces = mean(w_ace, na.rm = TRUE)) |>
+  pivot_wider(
+      names_from = Surface,  
+      values_from = mean_aces) |>
+  count(winner_name) |>
+  arrange(desc(n))
+view(wta_aces)  
+  
