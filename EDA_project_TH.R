@@ -58,9 +58,7 @@ table(wta_2021_2026_matches$tourney_name)
 #combining the two clays
 #dplyr:: used due to an error from a potential other package used
 wta_2021_2026_matches = wta_2021_2026_matches |>
-  mutate(surface = dplyr::recode(tolower(surface), 
-                          "Clay" = "clay")) |>
-  mutate(surface = as.factor(surface))
+  mutate(surface = factor(tolower(surface)))
 
 str(wta_2021_2026_matches)
 
@@ -185,25 +183,41 @@ summary(aov(total_aces~surface, data = ace_data))
 
 
 #repeated measures ANOVA?
-#between subjects: each subject is measured once ( total_aces)
+#between subjects: each subject is measured once (total_aces)
 #within subjects: each subject is measured many times (surfaces?)
-#error
-wta_match = wta_2021_2026_matches |>
-  dplyr::select(winner_name, loser_name, w_ace, l_ace, surface) |>
-  drop_na() |>
-  pivot_longer( cols = c("winner_name", "loser_name"), 
-                names_to = "player" , values = "match_outcome")
 
-wta_aces = wta_2021_2026_matches |>
-  group_by(winner_name, surface) |>
-  summarise(mean_aces = mean(w_ace, na.rm = TRUE)) |>
-  pivot_wider(
-      names_from = Surface,  
-      values_from = mean_aces) |>
-  count(winner_name) |>
-  arrange(desc(n))
-view(wta_aces)  
-  
+
+rm.ANOVA2 = aov(ace~surface+Error(name/surface),data=wta_long)
+summary(rm.ANOVA2)
+
+## combining the winner and loser columns
+wta_long <- wta_2021_2026_matches %>%
+  rename_with(~ sub("^w_", "winner_", .x), starts_with("w_")) %>%
+  rename_with(~ sub("^l_", "loser_", .x), starts_with("l_")) %>%
+  pivot_longer(
+    cols = matches("^(winner|loser)_"),
+    names_to = c("outcome", ".value"),
+    names_pattern = "(winner|loser)_(.*)"
+  )
+wta_long
+
+wta_long = wta_long |>
+  select(surface, outcome:rank_points)
+
+wta_long = wta_long |>
+  select(-id, -seed, -entry)
+wta_long
+
+wta_aces = wta_long |>
+  drop_na() |>
+  group_by(name, surface) |>
+  summarise(mean_aces = mean(ace),
+    .groups = "drop")
+wta_aces
+
+rm.ANOVA = aov(mean_aces~surface+Error(name/surface),data=wta_aces)
+summary(rm.ANOVA)
+#there is a significantly statistical difference in mean_aces by surface
 
 #clustering 
 
