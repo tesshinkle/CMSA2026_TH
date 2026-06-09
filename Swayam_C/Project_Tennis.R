@@ -130,8 +130,40 @@ table(wta_2021_2026_matches$surface)
 
 
 
+#height and rank difference 
 
-#  EDA project Hypothesis Test-2
+
+height_rank <- wta_2021_2026_matches |> 
+  filter(!is.na(winner_ht),  !is.na(loser_ht), !is.na(winner_rank), !is.na(winner_rank),
+         !(winner_rank == loser_rank), !(winner_ht == loser_ht)) |>
+  mutate(category = case_when( winner_rank < loser_rank & winner_ht >loser_ht ~ "Better rank + taller",
+                               winner_rank < loser_rank & winner_ht <loser_ht ~ "Better rank + shorter",
+                               winner_rank > loser_rank & winner_ht >loser_ht ~ "Worst rank + taller",
+                               winner_rank > loser_rank & winner_ht <loser_ht ~ "Worst rank + shorter"))
+
+
+table(height_rank$category)
+
+
+height_rank |>
+  count(category) |>
+  mutate(prop = n / sum(n)) |>
+  ggplot(aes(x = category, y = prop)) +
+  geom_col(col = "skyblue", fill = "lightgreen", na.rm = TRUE) +
+  labs(x= "", y = "") +
+  theme(axis.text.x = element_text(
+    vjust = 1, hjust = 1)) +
+  coord_flip()
+
+
+
+
+
+..................................................................................
+
+
+
+#  EDA project Hypothesis Test-1
 # Is there more number of Aces in specific type of surface? 
 
 
@@ -176,8 +208,64 @@ aov(total_aces ~ surface, data = ace_data)|>
 summary()
 
 
+.............................................................................................
+
+............................................................................
+
+# EDA project Hypothesis Test-2
+# At which case does the winner have more advantage if he/she's rank,height or age?
+
+adv <- wta_2021_2026_matches |>
+  filter(!is.na(winner_rank), !is.na(loser_rank),
+         !is.na(winner_ht), !is.na(loser_ht),
+         !is.na(winner_age), !is.na(loser_age)) |>
+  summarise(Rank = mean(winner_rank < loser_rank),
+            Height = mean(winner_ht > loser_ht),
+            Age = mean(winner_age > loser_age))
+
+ggplot(data.frame(category = c("Rank", "Height", "Age"),
+                  prop = c(adv$Rank, adv$Height, adv$Age)),
+       aes(x = category, y = prop)) +
+  geom_col(fill="skyblue", col="blue", na.rm = TRUE) +
+  coord_flip() +
+  theme_minimal() +
+  labs(title = "How Often Does the Winner Have the Advantage?",
+       x = "", y = "Probability")
 
 
 
+# Do height and age matter more in close matches?
+
+
+wta_2021_2026_matches |>
+  filter(!is.na(winner_rank), !is.na(loser_rank),
+    !is.na(winner_ht), !is.na(loser_ht),
+    !is.na(winner_age), !is.na(loser_age) ) |>
+  
+  mutate(rank_df = abs(winner_rank - loser_rank),
+    rank_grp = case_when(rank_df <= 10 ~ "0–10",
+                         rank_df <= 25 ~ "11–25",
+                         rank_df <= 50 ~ "26–50",
+                         rank_df >50 ~ "50+"),
+    height_adv = winner_ht > loser_ht,
+    age_adv    = winner_age > loser_age)  |>
+  
+  group_by(rank_grp) |>
+  summarise(height_adv = mean(height_adv),
+            age_adv = mean(age_adv))  |>
+  
+  pivot_longer(c(height_adv, age_adv),
+               names_to = "variable",
+               values_to = "prob")|>
+  
+  ggplot(aes(rank_grp, prob, color = variable, group = variable)) +
+  geom_line(linewidth = 1) +
+  geom_point(size = 2) +
+  theme_minimal() +
+  labs(x = "Rank difference group",
+       y = "Probability winner has advantage",
+       title = "Do height and age matter more in close matches?")
+
+.......................................................................
 
 
