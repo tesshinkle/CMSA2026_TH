@@ -210,18 +210,18 @@ view(wta_aces)
 set.seed(47)
 
 wong_kmeans1 = wta_2021_2026_matches |> 
-  dplyr::select(w_bpFaced, w_bpSaved) |> 
+  dplyr::select(w_df, w_bpSaved) |> 
   drop_na() |>
   kmeans(algorithm = "Hartigan-Wong", centers = 3,
          nstart = 1, iter.max = 50)
 
 wta_2021_2026_matches |>
-  dplyr::select(w_bpFaced, w_bpSaved) |> 
+  dplyr::select(w_df, w_bpSaved) |> 
   drop_na() |>
   mutate(
     wta_clusters = as.factor(wong_kmeans1$cluster)
   ) |>
-  ggplot(aes(x =  w_bpFaced, y = w_bpSaved,
+  ggplot(aes(x =  w_df, y = w_bpSaved,
              color = wta_clusters)) +
   geom_point(size = 2) + 
   ggthemes::scale_color_colorblind() +
@@ -230,7 +230,7 @@ wta_2021_2026_matches |>
 #multipe variables clustering
 
 wta_match_features = wta_2021_2026_matches |>
-  select( w_svpt, w_1stIn, w_1stWon, w_2ndWon) |> 
+  select( w_svpt, w_1stIn, w_1stWon, w_2ndWon, w_df, w_bpSaved, w_bpFaced) |> 
   drop_na() 
 #scaling volleyball features so you don't have to mutate everything individually
 std_wta_match_features = wta_match_features |> 
@@ -242,7 +242,7 @@ kmeans_many_features = std_wta_match_features |>
 library(gt)
 #creating table of volleyball data
 wta_2021_2026_matches |>
-  select( w_svpt, w_1stIn, w_1stWon, w_2ndWon) |> 
+  select( w_svpt, w_1stIn, w_1stWon, w_2ndWon, w_df, w_bpSaved, w_bpFaced) |> 
   drop_na() |>
   mutate(wta_clusters = as.factor(kmeans_many_features$cluster)) |> 
   pivot_longer(-wta_clusters, names_to = "feature", values_to = "value") |>
