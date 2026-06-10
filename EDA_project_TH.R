@@ -191,15 +191,24 @@ rm.ANOVA2 = aov(ace~surface+Error(name/surface),data=wta_long)
 summary(rm.ANOVA2)
 
 ## combining the winner and loser columns
-wta_long <- wta_2021_2026_matches %>%
-  rename_with(~ sub("^w_", "winner_", .x), starts_with("w_")) %>%
-  rename_with(~ sub("^l_", "loser_", .x), starts_with("l_")) %>%
+#essentially pivoting the data set
+wta_long <- wta_2021_2026_matches |>
+  rename_with(~ sub("^w_", "winner_", .x), starts_with("w_")) |>
+  rename_with(~ sub("^l_", "loser_", .x), starts_with("l_")) |>
+  rename_with(~ sub("1st"))
   pivot_longer(
     cols = matches("^(winner|loser)_"),
     names_to = c("outcome", ".value"),
     names_pattern = "(winner|loser)_(.*)"
-  )
+  ) 
 wta_long
+glimpse(wta_long)
+str(wta_long)
+
+wta_long = wta_long |>
+  rename( firstIn = `1stIn`,
+          firstWon = `1stWon`,
+          secWon = `2ndWon`)
 
 wta_long = wta_long |>
   select(surface, outcome:rank_points)
@@ -220,7 +229,7 @@ summary(rm.ANOVA)
 #there is a significantly statistical difference in mean_aces by surface
 
 #clustering 
-
+#kmeans
 set.seed(47)
 
 wong_kmeans1 = wta_2021_2026_matches |> 
@@ -251,7 +260,7 @@ std_wta_match_features = wta_match_features |>
   scale(center = TRUE, scale = TRUE)
 
 kmeans_many_features = std_wta_match_features |> 
-  kmeans(algorithm = "Hartigan-Wong", centers = 4, nstart = 50) 
+  kmeans(algorithm = "Hartigan-Wong", centers = 3, nstart = 50) 
 
 library(gt)
 #creating table of volleyball data
@@ -266,3 +275,9 @@ wta_2021_2026_matches |>
   gt() |>
   fmt_number( decimals = 2)
 
+#clustering analysis
+#hierarchical clustering
+
+wta_serves = wta_long |>
+  ggplot(aes(x = `1stIn`, y = `1stWon`)) +
+  geom_point()
