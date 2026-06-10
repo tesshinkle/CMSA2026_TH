@@ -263,7 +263,7 @@ kmeans_many_features = std_wta_match_features |>
   kmeans(algorithm = "Hartigan-Wong", centers = 3, nstart = 50) 
 
 library(gt)
-#creating table of volleyball data
+#creating table of tennis data
 wta_2021_2026_matches |>
   select( w_svpt, w_1stIn, w_1stWon, w_2ndWon, w_df, w_bpSaved, w_bpFaced) |> 
   drop_na() |>
@@ -275,12 +275,93 @@ wta_2021_2026_matches |>
   gt() |>
   fmt_number( decimals = 2)
 
+#doing kmean clustering with combined data ----
+wta_match_features2 = wta_long |>
+  select( svpt, firstIn, firstWon, secWon, df, bpSaved, bpFaced) |> 
+  drop_na() 
+#scaling volleyball features so you don't have to mutate everything individually
+std_wta_match_features2 = wta_match_features2 |> 
+  scale(center = TRUE, scale = TRUE)
+
+kmeans_many_features2 = std_wta_match_features2 |> 
+  kmeans(algorithm = "Hartigan-Wong", centers = 3, nstart = 50) 
+
+library(gt)
+#creating table of tennis data
+wta_long |>
+  select( svpt, firstIn, firstWon, secWon, df, bpSaved, bpFaced) |> 
+  drop_na() |>
+  mutate(wta_clusters2 = as.factor(kmeans_many_features2$cluster)) |> 
+  pivot_longer(-wta_clusters2, names_to = "feature", values_to = "value") |>
+  group_by(wta_clusters2, feature) |>
+  summarize(avg_value = base::mean(value), .groups = "drop") |>
+  pivot_wider(id_cols = c(wta_clusters2), names_from = feature, values_from = avg_value) |>
+  gt() |>
+  fmt_number( decimals = 2)
+
+#kmeans clustering with just bpFaced, bpSaved, df, and firstWon
+
+wta_match_features3 = wta_long |>
+  select(df, bpSaved, bpFaced) |> 
+  drop_na() 
+#scaling volleyball features so you don't have to mutate everything individually
+std_wta_match_features3 = wta_match_features3 |> 
+  scale(center = TRUE, scale = TRUE)
+
+kmeans_many_features3 = std_wta_match_features3 |> 
+  kmeans(algorithm = "Hartigan-Wong", centers = 4, nstart = 50) 
+
+library(gt)
+#creating table of tennis data
+wta_long |>
+  select( df, bpSaved, bpFaced) |> 
+  drop_na() |>
+  mutate(wta_clusters3 = as.factor(kmeans_many_features3$cluster)) |> 
+  pivot_longer(-wta_clusters3, names_to = "feature", values_to = "value") |>
+  group_by(wta_clusters3, feature) |>
+  summarize(avg_value = base::mean(value), .groups = "drop") |>
+  pivot_wider(id_cols = c(wta_clusters3), names_from = feature, values_from = avg_value) |>
+  gt() |>
+  fmt_number( decimals = 2)
+
+
+
 #clustering analysis
-#hierarchical clustering
+#hierarchical clustering----
+ggplot(wta_long, aes(x = ace, y = ht)) + geom_point()
 
 wta_serves = wta_long |>
-  ggplot(aes(x = firstIn, y = firstWon)) +
-  geom_point()
+  select(SvGms, rank) |>
+  drop_na()
 
+wta_serves = wta_serves |>
+  mutate(std_SvGms = as.numeric(scale(SvGms)),
+    std_rank = as.numeric(scale(rank)))
 
-ggplot(wta_long, aes(x = firstIn, firstWon)) + geom_point()
+wta_serves |> 
+  ggplot(aes(x = std_SvGms, y = std_rank)) +
+  geom_point(size = 2) +
+  coord_fixed()
+
+wta_dist = wta_serves |> 
+  select(std_SvGms, std_rank) |> 
+  dist()
+
+wta_dist_matrix = as.matrix(wta_dist)
+rownames(players_dist_matrix) = wta_serves$name #assigns names to rows and columns
+colnames(players_dist_matrix) = wta_serves$name
+players_dist_matrix[1:4, 1:4]
+
+wta_complete = wta_dist |> 
+  hclust(method = "complete")
+
+wta_serves |> 
+  mutate(
+    cluster = as.factor(cutree(wta_complete, k = 3)) #choose number of clusters
+  ) |>
+  ggplot(aes(x = std_SvGms, y = std_rank,
+             color = cluster)) +
+  geom_point(size = 2) + 
+  ggthemes::scale_color_colorblind() +
+  coord_fixed()
+theme(legend.position = "bottom")
