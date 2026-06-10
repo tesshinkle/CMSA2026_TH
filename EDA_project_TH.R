@@ -4,6 +4,7 @@
 library(tidyverse)
 require(mosaic)
 require(performance)
+require(ggplot2)
 
 wta_2021_2026_matches <- read_csv("https://raw.githubusercontent.com/36-SURE/2026/main/data/wta_matches_2021_2026.csv")
 
@@ -195,7 +196,6 @@ summary(rm.ANOVA2)
 wta_long <- wta_2021_2026_matches |>
   rename_with(~ sub("^w_", "winner_", .x), starts_with("w_")) |>
   rename_with(~ sub("^l_", "loser_", .x), starts_with("l_")) |>
-  rename_with(~ sub("1st"))
   pivot_longer(
     cols = matches("^(winner|loser)_"),
     names_to = c("outcome", ".value"),
@@ -279,5 +279,8 @@ wta_2021_2026_matches |>
 #hierarchical clustering
 
 wta_serves = wta_long |>
-  ggplot(aes(x = `1stIn`, y = `1stWon`)) +
+  ggplot(aes(x = firstIn, y = firstWon)) +
   geom_point()
+
+
+ggplot(wta_long, aes(x = firstIn, firstWon)) + geom_point()
