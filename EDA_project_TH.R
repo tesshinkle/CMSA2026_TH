@@ -1,5 +1,5 @@
 #new project
-
+#WTA Tennis matches 2021-2026
 
 library(tidyverse)
 require(mosaic)
@@ -93,11 +93,20 @@ wta_2021_2026_matches <- wta_2021_2026_matches |>
                                 tourney_level == "50+H" ~ "ITF Tournament")) |>
   mutate(tournament = as.factor(tournament))
 
-
+#table
 wta_2021_2026_matches |> 
   select(surface, tournament) |> 
   table() |> 
   prop.table()
+
+ace_table = wta_long |>
+  dplyr::select(tournament, surface, ace) |>
+  drop_na() |>
+  group_by(tournament, surface) |>
+  summarise(sum_aces = sum(ace, na.rm = TRUE),
+            .groups = "drop") |>
+  pivot_wider(names_from = surface, values_from = sum_aces, values_fill = 0)
+  
 
 #visualization for tournament levels and surfaces used
 wta_2021_2026_matches |>
@@ -105,7 +114,8 @@ wta_2021_2026_matches |>
   drop_na() |>
   ggplot(aes(x = tournament, fill = surface)) +
   geom_bar(col = "black") +
-  labs(x= "Tournament Level", y = "") +
+  labs(x= "Tournament Level", y = "", 
+       title = "Visualization of Surfaces used per Tournament Level") +
   theme_bw() +
   theme(axis.text.x = element_text(angle = 45, 
                                    vjust = 1, hjust = 1)) 
@@ -121,8 +131,6 @@ wta_2021_2026_matches |>
   table() |> 
   chisq.test()
 
-#potential repeated measures anova for number of aces by surface level
-
 #looking at potential upsets (amount)
 require(ggridges)
 wta_2021_2026_matches |>
@@ -136,12 +144,6 @@ wta_2021_2026_matches |>
   theme_bw() +
   labs(title = "Frequency of Upsets among WTA matches", y = "Rounds (SF, QF, and F)",
        x = "Difference in Rank between Winner and Loser")
-
-#looking at winner's number of aces vs number of defaults
-wta_2021_2026_matches |>
-  select(w_ace, w_df, l_ace, l_df) |>
-  #mutate(no_aces = pivot_longer(w_aces,l_aces = "aces", ))
-  ggplot(aes(x = ))
 
 # Is there more number of Aces in specific type of surface? 
 
@@ -170,15 +172,17 @@ ace_data |>
 
 # Boxplot Visualization
 #distribution of aces by court surface
-ace_data |>
-  filter(total_aces<30) |>
-  ggplot(aes(x = total_aces, y = surface, fill = surface)) +
-  geom_boxplot(na.rm = TRUE) +
-  labs(title = "Distribution of Total Aces by Court Surface",
-       x = "Total Aces per Match", 
-       y = "Surface Type") +
-  theme_minimal() +
-  theme(legend.position = "none")
+
+
+wta_long |>
+  select(ace, surface) |>
+  drop_na() |>
+  filter(ace < 30) |>
+  ggplot(aes(x = ace, y = surface, fill = surface)) +
+  geom_boxplot() +
+  labs(title = "Distribution of Aces by Court Surface",
+       x = "Total Aces per Match", y = "Surface type") +
+  theme_bw() + theme(legend.position = "none")
 
 summary(aov(total_aces~surface, data = ace_data))
 
@@ -187,12 +191,11 @@ summary(aov(total_aces~surface, data = ace_data))
 #between subjects: each subject is measured once (total_aces)
 #within subjects: each subject is measured many times (surfaces?)
 
-
-rm.ANOVA2 = aov(ace~surface+Error(name/surface),data=wta_long)
-summary(rm.ANOVA2)
+#rm.ANOVA2 = aov(ace~surface+Error(name/surface),data=wta_long)
+#summary(rm.ANOVA2)
 
 ## combining the winner and loser columns
-#essentially pivoting the data set
+#essentially pivoting the data set----
 wta_long <- wta_2021_2026_matches |>
   rename_with(~ sub("^w_", "winner_", .x), starts_with("w_")) |>
   rename_with(~ sub("^l_", "loser_", .x), starts_with("l_")) |>
@@ -209,6 +212,13 @@ wta_long = wta_long |>
   rename( firstIn = `1stIn`,
           firstWon = `1stWon`,
           secWon = `2ndWon`)
+
+wta_long_table = wta_long |>
+  #as.data.frame() |>
+  select(surface, tournament, name, outcome, ht, ace, df, rank, age )|>
+  head(5) |>
+  gt() |>
+  tab_header(title = "WTA 2021-2026 Data") 
 
 wta_long = wta_long |>
   select(surface, outcome:rank_points)
@@ -228,27 +238,31 @@ rm.ANOVA = aov(mean_aces~surface+Error(name/surface),data=wta_aces)
 summary(rm.ANOVA)
 #there is a significantly statistical difference in mean_aces by surface
 
+
+ggplot(wta_long, aes(x = ace, y = ht)) + geom_point()
+
 #clustering 
-#kmeans
+#kmeans----
 set.seed(47)
-
-wong_kmeans1 = wta_2021_2026_matches |> 
-  dplyr::select(w_df, w_bpSaved) |> 
-  drop_na() |>
-  kmeans(algorithm = "Hartigan-Wong", centers = 3,
-         nstart = 1, iter.max = 50)
-
-wta_2021_2026_matches |>
-  dplyr::select(w_df, w_bpSaved) |> 
+#potential two variable clustering between height and aces
+wta_data = wta_long |>
+  select(ace, ht) |>
   drop_na() |>
   mutate(
-    wta_clusters = as.factor(wong_kmeans1$cluster)
-  ) |>
-  ggplot(aes(x =  w_df, y = w_bpSaved,
-             color = wta_clusters)) +
-  geom_point(size = 2) + 
-  ggthemes::scale_color_colorblind() +
-  theme(legend.position = "bottom")
+    std_ace = as.numeric(scale(ace, center = TRUE, scale = TRUE)),
+    std_ht = as.numeric(scale(ht, center = TRUE, scale = TRUE)))
+
+wta_kmeans = wta_data |>
+  dplyr::select(std_ace, std_ht) |>
+  drop_na() |>
+  kmeans(algorithm = "Hartigan-Wong", centers = 3, nstart = 1, iter.max = 40)
+
+wta_data |>
+  drop_na() |>
+  mutate(wta_clusters = as.factor(wta_kmeans$cluster)) |>
+  ggplot(aes(x = ht, y = ace, color = wta_clusters)) +
+  geom_point() + coord_fixed()
+
 
 #multipe variables clustering
 
@@ -328,7 +342,6 @@ wta_long |>
 
 #clustering analysis
 #hierarchical clustering----
-ggplot(wta_long, aes(x = ace, y = ht)) + geom_point()
 
 wta_serves = wta_long |>
   select(SvGms, rank) |>
@@ -365,3 +378,94 @@ wta_serves |>
   ggthemes::scale_color_colorblind() +
   coord_fixed()
 theme(legend.position = "bottom")
+
+#Clustering from Swayam of avg_rank and avg_ace
+player_summary <- wta_long |>
+  group_by(name) |>
+  summarize(avg_rank = mean(rank, na.rm = TRUE),
+            avg_bpFaced = mean(bpFaced, na.rm = TRUE),
+            avg_ace = mean(ace, na.rm = TRUE),
+            matches = n()) |>
+  filter(avg_rank < 350, avg_ace<8) |>
+  drop_na()
+
+wta_players <- player_summary |>
+  mutate(std_rank = as.numeric(scale(avg_rank, center = TRUE, scale = TRUE)),
+         std_ace = as.numeric(scale(avg_ace, center = TRUE, scale = TRUE)))
+
+players_dist <- wta_players |>
+  select(std_rank, std_ace) |>
+  dist()
+
+wta_complete <- players_dist |>
+  hclust(method = "complete")
+
+wta_players |>
+  mutate(
+    cluster = as.factor(cutree(wta_complete, k = 3))
+  ) |>
+  ggplot(aes(
+    x = avg_ace,
+    y = avg_rank,
+    color = cluster
+  )) +
+  geom_point(size = 1) +
+  coord_flip() +
+  ggthemes::scale_color_colorblind() +
+  theme(legend.position = "bottom")
+
+#soft clustering ----
+library(mclust)
+wta_mclust = player_summary |> 
+  select(avg_ace, avg_rank) |> 
+  Mclust()
+
+summary(wta_mclust)
+
+library(broom)
+library(gt)
+
+gt(tidy(wta_mclust)) |>
+  cols_label(mean.avg_ace = "Mean avg aces",
+             mean.avg_rank = "Mean avg rank",
+             component = "Clusters",
+             size = "Size",
+             proportion = "Proportion")
+
+wta_mclust |> #the larger points show a larger uncertainty in the cluster that they are in
+  augment() |> 
+  ggplot(aes(x = avg_ace, y = avg_rank, color = .class, size = .uncertainty)) +
+  geom_point(alpha = 0.6) + labs(title = "Clustering of Average Rank and Average Aces",
+                                 x = "Average Ace", y = "Average Rank")
+
+wta_mclust |> #graph with clusters with circles
+  plot(what = "classification")
+
+#table("Clusters" = wta_mclust$classification, "Positions" = player_summary$outcome)
+
+
+wta_new = wta_long |>
+  select(ace, rank, outcome, name) |>
+  drop_na() |>
+  group_by(name, outcome) |>
+  summarize(avg_rank = mean(rank, na.rm = TRUE),
+                        avg_ace = mean(ace, na.rm = TRUE),
+                        matches = n()) |>
+  filter(avg_rank < 350, avg_ace<8)
+
+wta_mclust2 = wta_new |> 
+  select(avg_ace, avg_rank) |> 
+  Mclust()
+
+summary(wta_mclust2)
+
+table("Clusters" = wta_mclust2$classification, "outcome" = wta_new$outcome)
+
+wta_mclust2 |> #the larger points show a larger uncertainty in the cluster that they are in
+  augment() |> 
+  ggplot(aes(x = avg_ace, y = avg_rank, color = .class, size = .uncertainty)) +
+  geom_point(alpha = 0.6) + labs(title = "Clustering of Average Rank and Average Aces",
+                                 x = "Average Ace", y = "Average Rank")
+
+wta_mclust2 |> #graph with clusters with circles
+  plot(what = "classification")
