@@ -12,6 +12,9 @@ wta_2021_2026_matches <-
                      loser_seed = as.character(loser_seed))
           })
 
+
+# Combining 'Clay' with 'clay'
+
 wta_2021_2026_matches = wta_2021_2026_matches |>
   mutate(surface = recode(tolower(surface),
                           "Clay" = "clay")) |>
@@ -24,6 +27,233 @@ no_of_games_played <- wta_2021_2026_matches |>
   group_by(winner_name) |>
   count(winner_name) |>
   arrange(desc(n))
+
+
+
+
+# Filtering winner and loser 
+
+wta_long <- wta_2021_2026_matches |>
+  rename_with(~ sub("^w_", "winner_", .x), starts_with("w_")) |>
+  rename_with(~ sub("^l_", "loser_", .x), starts_with("l_")) |>
+  pivot_longer(
+    cols = matches("^(winner|loser)_"),
+    names_to = c("outcome", ".value"),
+    names_pattern = "(winner|loser)_(.*)"
+  ) 
+wta_long
+glimpse(wta_long)
+str(wta_long)
+
+wta_long = wta_long |>
+  rename( firstIn = `1stIn`,
+          firstWon = `1stWon`,
+          secWon = `2ndWon`)
+
+
+
+................................................................................
+
+
+
+#  EDA project Hypothesis Test-1
+# Is there more number of Aces in specific type of surface? 
+
+
+#Filtering datasets for ace/surface analysis
+ace_data <- wta_2021_2026_matches |>
+  filter(!is.na(surface),!is.na(w_ace), !is.na(l_ace)) |>
+  mutate(total_aces = w_ace + l_ace)
+
+
+#Distribution of Matches by Court Surface
+ace_data |>
+  count(surface) |>
+  mutate(prop = n / sum(n)) |>
+  ggplot(aes(x = surface, y = prop)) +
+  geom_col(fill="skyblue", col="blue", na.rm = TRUE) +
+  theme_bw()+
+  theme(axis.text.x = element_text(angle = 45,
+                                   vjust = 1, hjust = 1))+
+  scale_y_continuous(labels = scales::percent_format()) +
+  labs(
+    title = "Distribution of Matches by Court Surface",
+    x = "Court Surface",
+    y = "Percentage of Matches"
+  )
+  
+# Boxplot Visualization
+
+ace_data |>
+  filter(total_aces<30) |>
+  ggplot(aes(x = total_aces, y = surface, fill = surface)) +
+  geom_boxplot(na.rm = TRUE) +
+  labs(title = "Distribution of Total Aces by Court Surface",
+       x = "Total Aces per Match", 
+       y = "Surface Type") +
+  theme_minimal() +
+  theme(legend.position = "none")
+
+  
+# ANOVA Test 
+
+aov(total_aces ~ surface, data = ace_data)|>
+summary()
+
+
+................................................................................
+
+# EDA project Hypothesis Test-2
+# At which case does the winner have more advantage if he/she's rank,height or age?
+
+adv <- wta_2021_2026_matches |>
+  filter(!is.na(winner_rank), !is.na(loser_rank),
+         !is.na(winner_ht), !is.na(loser_ht),
+         !is.na(winner_age), !is.na(loser_age)) |>
+  summarise(Rank = 100*mean(winner_rank < loser_rank),
+            Height = 100*mean(winner_ht > loser_ht),
+            Age = 100*mean(winner_age > loser_age))
+
+ggplot(data.frame(category = c("Rank", "Height", "Age"),
+                  prop = c(adv$Rank, adv$Height, adv$Age)),
+       aes(x = category, y = prop, fill = category)) +
+  geom_col( na.rm = TRUE) +
+  coord_flip() +
+  theme_minimal() +
+  labs(title = "How Often Does the Winner Have the Advantage?",
+       x = "", y = "Winning %")
+
+
+
+# Do height and age matter more in close matches?
+
+
+wta_2021_2026_matches |>
+  filter(!is.na(winner_rank), !is.na(loser_rank),
+    !is.na(winner_ht), !is.na(loser_ht),
+    !is.na(winner_age), !is.na(loser_age) ) |>
+  
+  mutate(rank_df = abs(winner_rank - loser_rank),
+    rank_grp = case_when(rank_df <= 10 ~ "0–10",
+                         rank_df <= 25 ~ "11–25",
+                         rank_df <= 50 ~ "26–50",
+                         rank_df >50 ~ "50+"),
+    height_adv = winner_ht > loser_ht,
+    age_adv    = winner_age > loser_age)  |>
+  
+  group_by(rank_grp) |>
+  summarise(height_adv = mean(height_adv),
+            age_adv = mean(age_adv))  |>
+  
+  pivot_longer(c(height_adv, age_adv),
+               names_to = "variable",
+               values_to = "prob")|>
+  
+  ggplot(aes(rank_grp, prob, color = variable, group = variable)) +
+  geom_line(linewidth = 1) +
+  geom_point(size = 2) +
+  theme_minimal() +
+  labs(x = "Rank difference group",
+       y = "Probability winner has advantage",
+       title = "Do height and age matter more in close matches?")
+
+...............................................................................
+
+ # Clustering
+
+
+# hierarchical clustering
+
+player_summary <- wta_long |>
+  group_by(name) |>
+  summarize(avg_rank = mean(rank, na.rm = TRUE),
+            avg_bpFaced = mean(bpFaced, na.rm = TRUE),
+            avg_ace = mean(ace, na.rm = TRUE),
+            matches = n()) |>
+  filter(avg_rank < 350, avg_ace<8) |>
+  drop_na()
+
+wta_players <- player_summary |>
+  mutate(std_rank = as.numeric(scale(avg_rank, center = TRUE, scale = TRUE)),
+         std_ace = as.numeric(scale(avg_ace, center = TRUE, scale = TRUE)))
+
+players_dist <- wta_players |>
+  select(std_rank, std_ace) |>
+  dist()
+
+wta_complete <- players_dist |>
+  hclust(method = "complete")
+
+wta_players |>
+  mutate(
+    cluster = as.factor(cutree(wta_complete, k = 3))
+  ) |>
+  ggplot(aes(
+    x = avg_ace,
+    y = avg_rank,
+    color = cluster
+  )) +
+  geom_point(size = 1) +
+  coord_flip() +
+  ggthemes::scale_color_colorblind() +
+  theme(legend.position = "bottom")
+
+
+
+
+
+
+# K- means Clustering
+
+
+player_summary <- wta_long |>
+  group_by(name) |>
+  summarize(avg_rank = mean(rank, na.rm = TRUE),
+    avg_ace = mean(ace, na.rm = TRUE),
+    matches = n()) |>
+  filter(avg_rank < 350)|>
+  drop_na()
+
+wta_players <- player_summary |>
+  mutate(std_rank = as.numeric(scale(avg_rank,center = TRUE, scale = TRUE)),
+         std_ace = as.numeric(scale(avg_ace, center = TRUE, scale = TRUE)))
+
+wta_kmeans <- wta_players |>
+  select(std_rank, std_ace) |>
+  kmeans(algorithm = "Lloyd", centers = 3, nstart = 30, iter.max = 30)
+
+wta_players |>
+  mutate(cluster = as.factor(wta_kmeans$cluster)) |>
+  ggplot(aes(x = avg_ace, y = avg_rank, color = cluster)) +
+  coord_flip() +
+  geom_point(size = 1) +
+  ggthemes::scale_color_colorblind() +
+  theme(legend.position = "bottom")
+
+
+
+# making elbow plots
+
+
+library(factoextra)
+
+wta_players |> 
+  select(std_rank, std_ace) |>
+  drop_na() |>
+  fviz_nbclust(kmeans, method = "wss")
+
+
+
+...............................................................................
+
+
+
+
+
+# Apendix (Not useful)
+
+
+
 
 
 wta_2021_2026_matches |>
@@ -48,9 +278,9 @@ wta_2021_2026_matches |>
   )|>
   
   
-
-      
-wta_2021_2026_matches|>
+  
+  
+  wta_2021_2026_matches|>
   ggplot(aes(x = winner_ht, y = w_ace)) +
   geom_point(alpha = 0.3, color = "darkblue", na.rm = TRUE) +
   geom_smooth(color = "red", na.rm = TRUE) +
@@ -86,9 +316,9 @@ wta_2021_2026_matches|>
 # Does players ranking difference affect the length of the game?
 
 view(wta_2021_2026_matches |>
-  select(surface, minutes, winner_rank, loser_rank, tourney_name, round ) |>
-  mutate(rank_difference = loser_rank - winner_rank) |>
-  filter(rank_difference<(-50), round==c("SF","F", "QF"))) |>
+       select(surface, minutes, winner_rank, loser_rank, tourney_name, round ) |>
+       mutate(rank_difference = loser_rank - winner_rank) |>
+       filter(rank_difference<(-50), round==c("SF","F", "QF"))) |>
   filter(!is.na(surface), !is.na(minutes), !is.na(rank_difference), rank_difference<300, rank_difference>0, minutes>0, minutes<300) |>
   ggplot(aes(x=minutes, y= rank_difference)) +
   geom_point(color = "navy", size = 1, alpha = 0.5)+
@@ -158,114 +388,5 @@ height_rank |>
 
 
 
-
-..................................................................................
-
-
-
-#  EDA project Hypothesis Test-1
-# Is there more number of Aces in specific type of surface? 
-
-
-#Filtering datasets for ace/surface analysis
-ace_data <- wta_2021_2026_matches |>
-  filter(!is.na(surface),!is.na(w_ace), !is.na(l_ace)) |>
-  mutate(total_aces = w_ace + l_ace)
-
-
-#Distribution of Matches by Court Surface
-ace_data |>
-  count(surface) |>
-  mutate(prop = n / sum(n)) |>
-  ggplot(aes(x = surface, y = prop)) +
-  geom_col(fill="skyblue", col="blue", na.rm = TRUE) +
-  theme_bw()+
-  theme(axis.text.x = element_text(angle = 45,
-                                   vjust = 1, hjust = 1))+
-  scale_y_continuous(labels = scales::percent_format()) +
-  labs(
-    title = "Distribution of Matches by Court Surface",
-    x = "Court Surface",
-    y = "Percentage of Matches"
-  )
-  
-# Boxplot Visualization
-
-ace_data |>
-  filter(total_aces<30) |>
-  ggplot(aes(x = total_aces, y = surface, fill = surface)) +
-  geom_boxplot(na.rm = TRUE) +
-  labs(title = "Distribution of Total Aces by Court Surface",
-       x = "Total Aces per Match", 
-       y = "Surface Type") +
-  theme_minimal() +
-  theme(legend.position = "none")
-
-  
-# ANOVA Test 
-
-aov(total_aces ~ surface, data = ace_data)|>
-summary()
-
-
-.............................................................................................
-
-............................................................................
-
-# EDA project Hypothesis Test-2
-# At which case does the winner have more advantage if he/she's rank,height or age?
-
-adv <- wta_2021_2026_matches |>
-  filter(!is.na(winner_rank), !is.na(loser_rank),
-         !is.na(winner_ht), !is.na(loser_ht),
-         !is.na(winner_age), !is.na(loser_age)) |>
-  summarise(Rank = mean(winner_rank < loser_rank),
-            Height = mean(winner_ht > loser_ht),
-            Age = mean(winner_age > loser_age))
-
-ggplot(data.frame(category = c("Rank", "Height", "Age"),
-                  prop = c(adv$Rank, adv$Height, adv$Age)),
-       aes(x = category, y = prop)) +
-  geom_col(fill="skyblue", col="blue", na.rm = TRUE) +
-  coord_flip() +
-  theme_minimal() +
-  labs(title = "How Often Does the Winner Have the Advantage?",
-       x = "", y = "Probability")
-
-
-
-# Do height and age matter more in close matches?
-
-
-wta_2021_2026_matches |>
-  filter(!is.na(winner_rank), !is.na(loser_rank),
-    !is.na(winner_ht), !is.na(loser_ht),
-    !is.na(winner_age), !is.na(loser_age) ) |>
-  
-  mutate(rank_df = abs(winner_rank - loser_rank),
-    rank_grp = case_when(rank_df <= 10 ~ "0–10",
-                         rank_df <= 25 ~ "11–25",
-                         rank_df <= 50 ~ "26–50",
-                         rank_df >50 ~ "50+"),
-    height_adv = winner_ht > loser_ht,
-    age_adv    = winner_age > loser_age)  |>
-  
-  group_by(rank_grp) |>
-  summarise(height_adv = mean(height_adv),
-            age_adv = mean(age_adv))  |>
-  
-  pivot_longer(c(height_adv, age_adv),
-               names_to = "variable",
-               values_to = "prob")|>
-  
-  ggplot(aes(rank_grp, prob, color = variable, group = variable)) +
-  geom_line(linewidth = 1) +
-  geom_point(size = 2) +
-  theme_minimal() +
-  labs(x = "Rank difference group",
-       y = "Probability winner has advantage",
-       title = "Do height and age matter more in close matches?")
-
-.......................................................................
 
 
