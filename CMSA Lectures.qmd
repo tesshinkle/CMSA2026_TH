@@ -1,0 +1,318 @@
+---
+title: "CMSA Camp Lectures"
+author: "Tess Hinkle"
+format: html
+editor: visual
+---
+
+## Running Code
+
+When you click the **Render** button a document will be generated that includes both content and the output of embedded code. You can embed code like this:
+
+```{r}
+1 + 1
+```
+
+You can add options to executable code like this
+
+```{r}
+#| echo: false
+2 * 2
+```
+
+The `echo: false` option disables the printing of code (only output is displayed).
+
+## Lecture One Code : Exploring Data in tidyverse
+
+Using package Lahman for baseball statistics.
+
+```{r}
+#| message: false
+#| warning: false
+require(tidyverse)
+require(Lahman)
+require(gt)
+require(dplyr)
+require(mosaic)
+```
+
+Getting the basic information of the Batting data set. The function `dim()` provides the number of rows and columns of the data set instead of getting it separately through `nrow()` and `ncol()`.
+
+```{r}
+Batting = as_tibble(Batting)
+view(Batting)
+
+dim(Batting)
+nrow(Batting)
+ncol(Batting)
+```
+
+Getting an overview of the code. The function `head()` gives the first 6 rows of a data set. The function `str()` gives a look at each variable within the data set and what data type it is such as a character, integer, or factor. The function `summary()` shows the simple statistics of each variable in the data set. To get one particular variable's summary the following can be used: `summary(data_set$variable)`. The function `table()` gives the number of observations per category of a variable.
+
+```{r}
+head(Batting)
+
+str(Batting)
+
+#summary(Batting)
+summary(Batting$G)
+
+table(Batting$lgID)
+```
+
+### Data Wrangling with dplyr
+
+Filtering extracts data from a data set with specific conditions such as the league IDs being those of the MLB leagues. Or more specifically it can be used to get a specific year of the data for a specific baseball team. The function `select()` allows for specific variables to be chosen from a data set.
+
+```{r}
+
+mlb_batting = filter(Batting, lgID %in% c("AL", "NL")) 
+# or filter(Batting, lgID == "AL" | lgID == "NL")
+nrow(Batting) - nrow(mlb_batting) # difference in row counts
+
+#summary(mlb_batting)
+
+pirates_batting = filter(Batting, yearID == 2022 & teamID == "PIT")
+head(pirates_batting, n = 3) # difference in row counts
+
+select(Batting, playerID, G, AB, R, H, HR, BB)
+
+select(Batting, contains("ID"), G, AB, R, H, HR, BB)
+```
+
+Using the `mutate()` function allows for a new column/variable to be made using existing variables. The `arrange()` function allows for the data set to be arranged in descending or ascending order based on a particular variable.
+
+```{r}
+new_batting = mutate(Batting, batting_avg = H / AB, so_bb_ratio = SO / BB)
+head(new_batting, n = 5)
+
+hr_batting = arrange(Batting, desc(HR)) # desc() for descending order
+head(hr_batting, n = 3)
+
+arrange(Batting, desc(AB), HR)
+```
+
+The pipe operator allows for multiple functions such as `filter()` and `mutate()` to be applied to a data set all at once. The `summarize()` function allows for data to be collapsed into a single summary value such as mean, median, max, min, and correlation. Another similar way to get summary variable is using the `favstats()` function or the `summary()` function. However, the `summarize()` function allows for these summaries to be used a variables. The `group_by()` function collapses groups in the called column.
+
+```{r}
+Batting |> 
+  filter(yearID == 2022, teamID == "PIT", AB >= 50) |> 
+  mutate(batting_avg = H / AB) |> 
+  arrange(desc(batting_avg)) |> 
+  select(playerID, AB, batting_avg)
+
+#the summarize() function
+Batting |> 
+  summarize(median_at_bats = median(AB))
+Batting |> 
+  summarize(cor_ab_hr = cor(AB, HR))
+
+favstats(~AB,data = Batting)
+
+#using the group_by() function
+Batting |> 
+  filter(yearID %in% 2015:2019) |> 
+  group_by(teamID) |> 
+  summarize(total_hr = sum(HR),
+            total_so = sum(SO),
+            total_bb = sum(BB)) |> 
+  arrange(desc(total_hr))
+
+
+```
+
+The count function give the number of observation in each category of a variable. Such as how many times the AL ID is called is 54277
+
+```{r}
+Batting |> 
+  count(lgID, name = "freq")
+```
+
+::: callout-note
+Note that there are other ways to get the same thing that `count()` does. One way is the base R way using `table()`. Another longer way would be `Batting |> group_by(lgID) |> summarize(freq = n()) |> ungroup()`
+:::
+
+A way to get specific rows is using the `slice()` function. The function `tail()` is the direct opposite of `head()` providing the last six rows of a data set.
+
+```{r}
+Batting |> 
+  slice(c(1, 99, 101, 500)) #sliced by row index
+
+tail(Batting)
+
+# single-season home run record (top 5)
+Batting |> 
+  slice_max(HR, n = 5)
+```
+
+### Putting it all together
+
+Example 1: Getting the batting stats for each year Example 2: Finding the top 3 years with the most homeruns Example 3: Finding out which years have the best and worst strikeout to walk ratios
+
+```{r}
+yearly_batting = Batting |>
+  filter(lgID %in% c("AL", "NL")) |>
+  group_by(yearID) |>
+  summarize(total_hits = sum(H, na.rm = TRUE), #total hits
+            total_hr = sum(HR, na.rm = TRUE), #total home runs
+            total_so = sum(SO, na.rm = TRUE), #total strikeouts
+            total_bb = sum(BB, na.rm = TRUE), #total walks
+            total_ab = sum(AB, na.rm = TRUE)) |> #total at bats
+  mutate(batting_avg = total_hits / total_ab)
+
+yearly_batting|>
+  arrange(desc(total_hr))|>
+  slice(1:3)
+#or can rewrite as
+#yearly_batting |> 
+#  slice_max(total_hr, n = 3)
+
+yearly_batting |>
+  mutate(so_bb_ratio = total_so/total_bb) |>
+  select(-batting_avg) |>
+  arrange(so_bb_ratio) |>
+  slice(c(1,n()))
+```
+
+Making pretty tables. The `gt()` function creates tables that can be exported and look better than the regular tibble tables.
+
+```{r}
+
+yearly_batting |>
+  select(yearID, batting_avg) |>
+  rename(Year = yearID, `Batting Average` = batting_avg) |>
+  arrange(desc(`Batting Average`)) |>
+  slice(c(1:3, (n()-2):n())) |>
+  gt() |>
+  fmt_number(columns = `Batting Average`, decimals = 3)
+
+yearly_batting |>
+  select(yearID, batting_avg) |>
+  rename(Year = yearID,
+         `Batting Average` = batting_avg) |>
+  arrange(desc(`Batting Average`)) |>
+  slice(c(1:3, (n()-2):n())) |>
+  gt(rowname_col = "Year") |>
+  # add table header
+  tab_header(title = "Best / Worst MLB Seasons by Batting Average") |>
+  # create row groups by location 
+  tab_row_group(
+    label = "Bottom 3 Years",
+    rows = 4:6
+  ) |>
+  tab_row_group(
+    label = "Top 3 Years",
+    rows = 1:3
+  ) |>
+  # recolor row group labels
+  tab_style(
+    style = cell_fill(color = "lightblue"),
+    locations = cells_row_groups(groups = "Bottom 3 Years")
+  ) |>
+  tab_style(
+    style = cell_fill(color = "lightpink"),
+    locations = cells_row_groups(groups = "Top 3 Years")) |>
+  # round "Batting Average" to 3 decimals 
+  fmt_number(columns = `Batting Average`, decimals = 3)
+
+```
+
+## Lecture Two Code: Grammar of Graphics and ggplot2
+
+```{r}
+#| include: false
+require(ggplot2)
+require(Lahman)
+library(tidyverse)
+require(babynames)
+theme_set(theme_bw())
+
+yearly_batting <- Batting |>
+  filter(lgID %in% c("AL", "NL")) |>
+  group_by(yearID) |>
+  summarize(total_h = sum(H, na.rm = TRUE),
+            total_hr = sum(HR, na.rm = TRUE),
+            total_so = sum(SO, na.rm = TRUE),
+            total_bb = sum(BB, na.rm = TRUE),
+            total_ab = sum(AB, na.rm = TRUE)) |>
+  mutate(batting_avg = total_h / total_ab)
+```
+
+Continuing with the Baseball batting data set from the Lahman package.
+
+Creating simple scatterplots with `geom_plot`. Can add on function `theme_bw()` to specify what theme is wanted for the graph beyond the base theme, or can use `theme_set()` to set theme for all plots at the beginning of code.
+```{r}
+yearly_batting |> 
+  ggplot() +
+  geom_point(aes(x = yearID, y = total_hr))
+```
+
+
+Creating line plots using `geom_point()` and `geom_line()`.
+```{r}
+#| warning: false
+#| message: false
+ggplot(data = yearly_batting, aes(x=yearID, y=total_hr)) + geom_point() +
+  coord_cartesian() + geom_line() + theme_bw() +
+  scale_x_continuous(limits = c(2000,2015)) + #looks at downward trend from 2000-2015
+  labs(title = "Yearly Batting for the MLB", y = "Total Home Runs", x = "Year")
+
+ggplot(yearly_batting, aes(x= yearID, y = total_hr)) + geom_point()+
+  geom_line() + scale_x_reverse() +scale_y_log10() + theme_bw()
+
+ggplot(yearly_batting, aes(x= yearID, y = total_hr)) + geom_point()+
+  geom_line() + geom_smooth() + theme_bw()
+```
+
+Creating a complex scatter plot of the rise of homeruns, strikeouts, and walks. The number of Homeruns per year are noted on the y-axis while the number of strikeouts are noted in the scaled color gradient and the number of walks is noted in the size of the points on the scatter plot. Labels are done for every possible variable including a title and caption.
+```{r}
+ggplot(yearly_batting, aes(x = yearID, y = total_hr)) + 
+  geom_point(aes(color = total_so, size = total_bb)) +
+  geom_line(color = "darkred", linetype = "dashed") +
+  scale_color_gradient(low = "darkblue", high = "gold") +
+  labs(
+    x = "Year",
+    y = "Homeruns",
+    color = "Strikeouts",
+    size = "Walks",
+    title = "The rise of three true outcomes in baseball",
+    caption = "Data courtesy of Lahman"
+  )
+```
+
+The art of pivoting. The function `pivot_longer()` takes data that is in a wide format and transforms it to a long format. It changes the data set to have more columns and less rows. The function `pivot_wider()` is the exact opposite and widens the data set to have more columns and less rows. Typically pivoting longer is more widely used.
+
+```{r}
+#| output: false
+yearly_batting |> 
+  select(yearID, HRs = total_hr, Strikeouts = total_so, Walks = total_bb) |> # renaming while also selecting
+  pivot_longer(HRs:Walks, # can also do !yearID (to select everything but yearID)
+               names_to = "stat",
+               values_to = "val")
+```
+
+Faceting allows for multiple graphs to be shown in one pane.The function `facet_wrap()` allows for multiple graphs to be on one pane. Calling `~ variable` within the function allows for the graph to group by that variable for the facet wrap. A `facet_grid()` function is similar to the wrap function but the syntax is slightly different calling the grouped variable before the tilda.
+
+```{r}
+yearly_batting |>
+  select(yearID, HRs = total_hr, 
+         Strikeouts = total_so, Walks = total_bb) |>
+  pivot_longer(HRs:Walks, 
+               names_to = "stat", 
+               values_to = "val") |>
+  ggplot(aes(yearID, val)) +
+  geom_line(color = "darkblue") +
+  geom_point(alpha = 0.8, color = "darkblue") +
+  facet_wrap(~ stat, scales = "free_y", ncol = 1) +
+  labs(
+    x = "Year", 
+    y = "Total of statistic",
+    title = "The rise of three true outcomes in baseball",
+    caption = "Data courtesy of Lahman"
+  ) +
+  theme_bw(base_size = 20) +
+  theme(strip.background = element_blank(),
+        plot.title = element_text(hjust = 0.5, 
+                                  face = "bold"))
+```
+
