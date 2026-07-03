@@ -241,14 +241,15 @@ yearly_batting <- Batting |>
 Continuing with the Baseball batting data set from the Lahman package.
 
 Creating simple scatterplots with `geom_plot`. Can add on function `theme_bw()` to specify what theme is wanted for the graph beyond the base theme, or can use `theme_set()` to set theme for all plots at the beginning of code.
+
 ```{r}
 yearly_batting |> 
   ggplot() +
   geom_point(aes(x = yearID, y = total_hr))
 ```
 
-
 Creating line plots using `geom_point()` and `geom_line()`.
+
 ```{r}
 #| warning: false
 #| message: false
@@ -265,6 +266,7 @@ ggplot(yearly_batting, aes(x= yearID, y = total_hr)) + geom_point()+
 ```
 
 Creating a complex scatter plot of the rise of homeruns, strikeouts, and walks. The number of Homeruns per year are noted on the y-axis while the number of strikeouts are noted in the scaled color gradient and the number of walks is noted in the size of the points on the scatter plot. Labels are done for every possible variable including a title and caption.
+
 ```{r}
 ggplot(yearly_batting, aes(x = yearID, y = total_hr)) + 
   geom_point(aes(color = total_so, size = total_bb)) +
@@ -314,5 +316,305 @@ yearly_batting |>
   theme(strip.background = element_blank(),
         plot.title = element_text(hjust = 0.5, 
                                   face = "bold"))
+```
+
+## Lecture 3 Code: Data Visualization w/ categorical variable
+Working with Tennis shot data from Wimbeldon's women's matches. Data taken from the SCORE sports data repository.
+
+```{r}
+#| include: false
+library(tidyverse)
+require(janitor)
+library(gt)
+
+tennis_shots = read_csv("tennis-w-shots-wim.csv.gz") |>
+  # tidy names
+  janitor::clean_names() |>
+  # remove serves
+  filter(shot_type != "serve") |>
+  # NA = shot did not produce an outcome (i.e., returned)
+  mutate(outcome_type = if_else(is.na(outcome_type),"returned", outcome_type)) |>
+  # replace "_" with " " in all character variables 
+  mutate(across(where(is.character), ~ str_replace_all(., "_", " "))) |>
+  # convert date into ymd format
+  mutate(date = ymd(date)) |>
+  # random sample of sample 10,000 observations
+  dplyr::slice_sample(n = 10000)
+
+tennis_shots = read_csv("https://raw.githubusercontent.com/36-SURE/2026/main/data/tennis_w_shots_wim.csv") |>
+  # filter out NAs for shot_type and outcome_type
+  filter(!is.na(shot_type), !is.na(outcome_type)) |>
+  # convert characters into factors
+  mutate(across(where(is.character), as.factor)) #mutate anytime variable is a character into a factor
+```
+
+Getting simple statistics of the data set.
+```{r}
+head(tennis_shots)
+
+names(tennis_shots) #gives column names
+
+class(tennis_shots$shot_type) #tells that its a factor
+levels(tennis_shots$shot_type) #gives the different factor levels
+
+table(tennis_shots$shot_type)
+prop.table(table(tennis_shots$shot_type))
+```
+
+Plotting categorical variables. Using angle allows for long category names to be viewed easily without the names overlapping. Specifying that the categorical variable is on the y-axis flips the bar chart. A similar way to do this is using `coord_flip()`. Using `geom_label()` allows for the number of observations of each category to be shown. Using `geom_errorbar()` gives errorbars for each bar.
+
+```{r}
+ggplot(tennis_shots,aes(x = shot_type)) +
+  geom_bar(fill = "lightblue", col = "blue") +
+  # angling axis text for readability
+  theme(axis.text.x = element_text(angle = 45,
+                                   vjust = 1, hjust = 1))
+
+tennis_shots |> 
+  ggplot(aes(y = shot_type)) +
+  geom_bar(fill = "blue") 
+
+tennis_shots |> 
+  count(shot_type) |> 
+  mutate(prop = n / sum(n)) |> 
+  ggplot(aes(x = prop, y = shot_type)) +
+  geom_col()  + geom_label(aes(label = n), hjust = 1)
+
+tennis_shots |> 
+  count(shot_type) |> 
+  mutate(prop = n / sum(n),
+         se = sqrt(prop * (1 - prop) / sum(n)),
+         lower = prop - 2 * se,
+         upper = prop + 2 * se) |> 
+  ggplot(aes(x = prop, y = shot_type)) +
+  geom_col(fill = "lavender") +
+  geom_errorbar(aes(xmin = lower, xmax = upper), 
+                color = "blue", 
+                width = 0.2, 
+                linewidth = 1)
+```
+
+Looking into multiple variables at once. Using `fct_relevel()` is able to move specified categories to the front. R goes alphabetically, so if we want to put a specific category towards the front we can relevel.
+
+```{r}
+table(tennis_shots$shot_type)
+
+tennis_shots = mutate(tennis_shots, outcome_type = fct_relevel(outcome_type, "unforced error"))
+table(tennis_shots$outcome_type)
+
+#two-level table
+table("Shot type" = tennis_shots$shot_type, 
+      "Outcome type" = tennis_shots$outcome_type)
+#another way to create a two-level table
+xtabs(~ shot_type + outcome_type, data = tennis_shots)
+```
+
+Creating graphs with 2+ variables.
+
+```{r}
+tennis_shots |>
+  count(shot_type, outcome_type) |>
+  ggplot(aes(x = shot_type, y = n, fill = outcome_type)) +
+  geom_col() +
+  theme(axis.text.x = element_text(angle = 45,
+                                   vjust = 1, hjust = 1))
+
+tennis_shots |>
+  count(shot_type, outcome_type) |>
+  ggplot(aes(x = shot_type, y = n,
+             fill = outcome_type)) +
+  geom_col(position = "fill") + #changes from count to proportion
+  labs(y = "prop") +
+  theme(axis.text.x = element_text(angle = 45,
+                                   vjust = 1, hjust = 1))
+
+tennis_shots |>
+  count(shot_type, outcome_type) |>
+  ggplot(aes(x = shot_type, y = n,
+             fill = outcome_type)) +
+  geom_col(position = "dodge") +
+  theme(axis.text.x = element_text(angle = 45,
+                                   vjust = 1, hjust = 1))
+```
+
+Creating proportion tables.
+
+```{r}
+# The base `R` way to get a two-way proportion table
+tennis_shots |> 
+  select(shot_type, outcome_type) |> 
+  table() |> 
+  prop.table()
+```
+Creating a heat map of shot types and outcome types
+```{r}
+tennis_shots |>
+  group_by(shot_type, outcome_type) |>
+  summarize(
+    freq = n(), 
+    joint = n() / nrow(tennis_shots)
+  ) |> 
+  ggplot(aes(x = shot_type, y = outcome_type)) +
+  geom_tile(aes(fill = freq), color = "white") + #creates heat map
+  geom_text(aes(label = scales::percent(joint, accuracy = 0.01))) +
+  scale_fill_gradient2() +
+  coord_equal() +
+  theme_classic() +
+  theme(axis.text.x = element_text(angle = 45,
+                                   vjust = 1, hjust = 1))
+```
+
+## Lecture 4 Code: Data viz w/ quantitative data
+Exploring ultra trail racing, specifically looking at the Western States Endurance Run. 
+
+```{r}
+#| include: false
+require(tidyverse)
+library(ggbeeswarm)
+library(GGally)
+require(ggridges)
+
+runs = read_csv("https://raw.githubusercontent.com/36-SURE/2026/main/data/ultra_running.csv") 
+race_stats_2019 = read_csv("https://raw.githubusercontent.com/36-SURE/2026/main/data/ultra_races_2019.csv")
+
+wser = runs |>
+  filter(event == "Western States Endurance Run")
+```
+
+Getting simple statistics of the western states endurance run data set. The function `sd()` gets the specific standard deviation of a variable from the data set.
+```{r}
+summary(wser$time_in_hours)
+
+sd(wser$time_in_hours, na.rm = TRUE) #na.rm removes na's
+```
+
+Creating a boxplot and histogram looking at the time in hours of race finishes. The histogram shows a bimodal model where a large portion of races finish within the 24 hour mark and another peak right before 30 hours.
+```{r}
+wser |> 
+  ggplot(aes(x = time_in_hours)) +
+  geom_boxplot() +
+  theme(axis.text.y = element_blank())+
+  labs(x= 'Time (hours)')
+
+wser |> 
+  ggplot(aes(x = time_in_hours)) +
+  geom_histogram(fill = "lightblue", col = "blue")+
+  labs(x= "Time (hours)")
+```
+
+Creating a densitz plot which is similar to a histogram but is a smooth line rather than bins.
+```{r}
+wser |> 
+  ggplot(aes(x = time_in_hours)) +
+  geom_density()+
+  labs(x= "Time (hours)")
+```
+
+A beeswarm plot to look at each individual data point, shows the bimodal-ness of the data as well as density with how many points are in a specific line. A violin plot is essentially a density plot of a beeswarm plot. A boxplot can be added to a violin plot using the `geom_boxplot()` function as well as the `geom_violin()` function at the same time.
+```{r}
+wser |> 
+  ggplot(aes(x = time_in_hours, y = "")) +
+  geom_beeswarm(cex = 1, size = 0L)+
+  labs(x= "Time (hours)", y="")
+
+wser |> 
+  ggplot(aes(x = time_in_hours, y = "")) +
+  geom_violin()+
+  labs(x= "Time (hours)", y ="")
+
+wser |> 
+  ggplot(aes(x = time_in_hours, y = "")) +
+  geom_violin() +
+  geom_boxplot(width = 0.25)+
+  labs(x= "Time (hours)", y = "")
+```
+
+Creating an ECDF plot where we can see the proportion of data under each curve. We can see that 50% of the data is at about 26 hours. We can also see a peak in the data at 24 hours showing how a large amount of the data takes place at that time and then levels out until it increases again. To create an ECDF plot use the function `stat_ecdf()` function.
+```{r}
+wser |> 
+  ggplot(aes(x = time_in_hours)) +
+  stat_ecdf()+
+  labs(x= "Time (hours)")
+```
+
+### Plotting 2D quantitative data
+Creating a scatterplot to look at the relationship between elevation gain and average finishing time in hours. Can create a LSRL using the `geom_smooth(method = "lm")` function.
+```{r}
+race_stats_2019 |> 
+  ggplot(aes(x = elevation_gain, y = mean_finish_time)) +
+  geom_point(color = "navy", size = 4, alpha = 0.5)+
+  scale_x_continuous(labels = scales::label_comma())+
+  labs(x = "Elevation Gain (m)", y = "Avg finish time (hrs)")
+
+cor(race_stats_2019$elevation_gain, 
+    race_stats_2019$mean_finish_time, 
+    use = "complete.obs") # to ensure no missing data
+
+race_stats_2019 |> 
+  ggplot(aes(x = elevation_gain, y = mean_finish_time)) +
+  geom_point(color = "navy", size = 4, alpha = 0.5)+
+  geom_smooth(method = "lm", linewidth = 2)+
+  labs(x = "Elevation Gain (m)", y = "Avg finish time (hrs)")
+
+```
+
+To compare multiple variables at a time you can use the GGally package which shows the correlation, density plots, and scatterplot between the variables.
+```{r}
+race_stats_2019 |> 
+  ungroup() |>
+  select(elevation_gain, elevation_loss, mean_finish_time, n_finishers) |> 
+  ggpairs(aes(alpha=0.3))
+```
+
+We can also look at categorical data with quantitative data. The function `case_when()` allows for you to group a quantitative variable into a categorical variable. The boxplot shows how different age groups have different median finishing times. The ECDF plot also shows the percentage of the groups that is within the finishing time. We are able to see how the youngest age group intercept the 50% line prior to 25 hours while the other three groups cross the 50% line after 25 hours.
+```{r}
+wser <- wser |>
+  mutate(age_grp = case_when(age <= 39 ~ "22-39", 
+                             age > 39 & age <= 49 ~ "40-49", 
+                             age > 49 & age <= 59 ~ "50-59", 
+                             age > 59 ~ "60+"))
+
+wser |> 
+  ggplot(aes(x = time_in_hours, y = age_grp))+
+  geom_boxplot()+
+  labs(x = "Time (hours)", y = "Age group")
+
+wser |> 
+  ggplot(aes(x = time_in_hours, color = age_grp)) +
+  stat_ecdf(linewidth = 1) +
+  theme(legend.position = "bottom")+
+  scale_color_viridis_d()+
+  labs(x = "Time (hours)", color = "Age group")
+```
+
+We can also create density plots with separate density plots for each category.
+```{r}
+wser |> 
+  ggplot(aes(x = time_in_hours, color = age_grp)) +
+  geom_density(linewidth = 0.8) + 
+  theme(legend.position = "bottom") +
+  labs(color = "Age group", x = "Time (hours)")
+
+wser |> 
+  ggplot(aes(x = time_in_hours, y = age_grp, fill = age_grp)) +
+  geom_density_ridges(scale = 1.5)+
+  scale_fill_viridis_d()+
+  labs(x = "Time (hours)", y = "Age group")+
+  theme(legend.position = "none")
+```
+
+The same thing can be done with histograms.
+```{r}
+wser |> 
+  ggplot(aes(x = time_in_hours, fill = age_grp)) +
+  geom_histogram(bins = 15, col = "black") +
+  scale_fill_viridis_d(alpha = 0.6, option= "mako")+
+  labs(fill = "Age group", x = "Time (hours)")
+
+wser |>
+  ggplot(aes(x = time_in_hours)) +
+  geom_histogram(bins = 15, col = "blue", fill = "lightblue") +
+  facet_wrap(~ age_grp, nrow = 1)+
+  labs(x= "Time (hours)")
 ```
 
