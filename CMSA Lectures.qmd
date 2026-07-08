@@ -1,8 +1,13 @@
 ---
 title: "CMSA Camp Lectures"
 author: "Tess Hinkle"
-format: html
+format: 
+  html:
+    toc: true
 editor: visual
+execute:
+  message: false
+  warning: false
 ---
 
 ## Running Code
@@ -39,6 +44,7 @@ require(mosaic)
 Getting the basic information of the Batting data set. The function `dim()` provides the number of rows and columns of the data set instead of getting it separately through `nrow()` and `ncol()`.
 
 ```{r}
+#| output: false
 Batting = as_tibble(Batting)
 view(Batting)
 
@@ -76,8 +82,7 @@ pirates_batting = filter(Batting, yearID == 2022 & teamID == "PIT")
 head(pirates_batting, n = 3) # difference in row counts
 
 select(Batting, playerID, G, AB, R, H, HR, BB)
-
-select(Batting, contains("ID"), G, AB, R, H, HR, BB)
+#select(Batting, contains("ID"), G, AB, R, H, HR, BB)
 ```
 
 Using the `mutate()` function allows for a new column/variable to be made using existing variables. The `arrange()` function allows for the data set to be arranged in descending or ascending order based on a particular variable.
@@ -319,6 +324,7 @@ yearly_batting |>
 ```
 
 ## Lecture 3 Code: Data Visualization w/ categorical variable
+
 Working with Tennis shot data from Wimbeldon's women's matches. Data taken from the SCORE sports data repository.
 
 ```{r}
@@ -349,7 +355,9 @@ tennis_shots = read_csv("https://raw.githubusercontent.com/36-SURE/2026/main/dat
 ```
 
 Getting simple statistics of the data set.
+
 ```{r}
+#| output: false
 head(tennis_shots)
 
 names(tennis_shots) #gives column names
@@ -446,7 +454,9 @@ tennis_shots |>
   table() |> 
   prop.table()
 ```
+
 Creating a heat map of shot types and outcome types
+
 ```{r}
 tennis_shots |>
   group_by(shot_type, outcome_type) |>
@@ -465,7 +475,8 @@ tennis_shots |>
 ```
 
 ## Lecture 4 Code: Data viz w/ quantitative data
-Exploring ultra trail racing, specifically looking at the Western States Endurance Run. 
+
+Exploring ultra trail racing, specifically looking at the Western States Endurance Run.
 
 ```{r}
 #| include: false
@@ -482,6 +493,7 @@ wser = runs |>
 ```
 
 Getting simple statistics of the western states endurance run data set. The function `sd()` gets the specific standard deviation of a variable from the data set.
+
 ```{r}
 summary(wser$time_in_hours)
 
@@ -489,6 +501,7 @@ sd(wser$time_in_hours, na.rm = TRUE) #na.rm removes na's
 ```
 
 Creating a boxplot and histogram looking at the time in hours of race finishes. The histogram shows a bimodal model where a large portion of races finish within the 24 hour mark and another peak right before 30 hours.
+
 ```{r}
 wser |> 
   ggplot(aes(x = time_in_hours)) +
@@ -503,6 +516,7 @@ wser |>
 ```
 
 Creating a densitz plot which is similar to a histogram but is a smooth line rather than bins.
+
 ```{r}
 wser |> 
   ggplot(aes(x = time_in_hours)) +
@@ -511,6 +525,7 @@ wser |>
 ```
 
 A beeswarm plot to look at each individual data point, shows the bimodal-ness of the data as well as density with how many points are in a specific line. A violin plot is essentially a density plot of a beeswarm plot. A boxplot can be added to a violin plot using the `geom_boxplot()` function as well as the `geom_violin()` function at the same time.
+
 ```{r}
 wser |> 
   ggplot(aes(x = time_in_hours, y = "")) +
@@ -530,6 +545,7 @@ wser |>
 ```
 
 Creating an ECDF plot where we can see the proportion of data under each curve. We can see that 50% of the data is at about 26 hours. We can also see a peak in the data at 24 hours showing how a large amount of the data takes place at that time and then levels out until it increases again. To create an ECDF plot use the function `stat_ecdf()` function.
+
 ```{r}
 wser |> 
   ggplot(aes(x = time_in_hours)) +
@@ -538,7 +554,9 @@ wser |>
 ```
 
 ### Plotting 2D quantitative data
+
 Creating a scatterplot to look at the relationship between elevation gain and average finishing time in hours. Can create a LSRL using the `geom_smooth(method = "lm")` function.
+
 ```{r}
 race_stats_2019 |> 
   ggplot(aes(x = elevation_gain, y = mean_finish_time)) +
@@ -559,6 +577,7 @@ race_stats_2019 |>
 ```
 
 To compare multiple variables at a time you can use the GGally package which shows the correlation, density plots, and scatterplot between the variables.
+
 ```{r}
 race_stats_2019 |> 
   ungroup() |>
@@ -567,6 +586,7 @@ race_stats_2019 |>
 ```
 
 We can also look at categorical data with quantitative data. The function `case_when()` allows for you to group a quantitative variable into a categorical variable. The boxplot shows how different age groups have different median finishing times. The ECDF plot also shows the percentage of the groups that is within the finishing time. We are able to see how the youngest age group intercept the 50% line prior to 25 hours while the other three groups cross the 50% line after 25 hours.
+
 ```{r}
 wser <- wser |>
   mutate(age_grp = case_when(age <= 39 ~ "22-39", 
@@ -588,6 +608,7 @@ wser |>
 ```
 
 We can also create density plots with separate density plots for each category.
+
 ```{r}
 wser |> 
   ggplot(aes(x = time_in_hours, color = age_grp)) +
@@ -604,6 +625,7 @@ wser |>
 ```
 
 The same thing can be done with histograms.
+
 ```{r}
 wser |> 
   ggplot(aes(x = time_in_hours, fill = age_grp)) +
@@ -618,3 +640,183 @@ wser |>
   labs(x= "Time (hours)")
 ```
 
+## Lecture 5 Code: Data Viz with density estimation
+
+Looking at a WNBA player's shooting stats which can also be accessed via the `wehoop` package.
+
+```{r}
+#| include: false
+require(cowplot)
+library(patchwork)
+library(ggridges)
+library(hexbin)
+library(sportyR)
+wilson_shots <- read_csv("https://raw.githubusercontent.com/36-SURE/2026/main/data/wilson_shots.csv")
+```
+
+Viewing a histogram
+
+```{r}
+wilson_shots |>
+  ggplot(aes(x = shot_distance)) +
+  geom_histogram(fill = "lightblue", col = "blue")
+```
+
+```{r}
+#| include: false
+wilson_shots |>
+  mutate(shot_cat = case_when(shot_distance < 10 ~ "<10",
+                              shot_distance >=10 & shot_distance < 20 ~"10-20",
+                              TRUE ~ ">20")) |>
+  count(shot_cat)
+```
+
+Looking at the density plot and ECDF plot of shot distance and number of shot attempts for the WNBA player Wilson. Using package `patchwork` we are able to put the two plots side by side.
+
+```{r}
+wilson_shot_dens = wilson_shots |>
+  ggplot(aes(x = shot_distance)) + 
+  geom_density() +
+  labs(x = "Shot distance (in feet)",
+       y = "Number of shot attempts")
+
+wilson_shot_ecdf = wilson_shots |>
+  ggplot(aes(x = shot_distance)) + 
+  stat_ecdf() +
+  labs(x = "Shot distance (in feet)",
+       y = "Proportion of shot attempts")
+
+wilson_shot_dens + wilson_shot_ecdf
+```
+
+Viewing the density plots of the shot distance and different shot types.
+
+```{r}
+wilson_shots |>
+  group_by(shot_type) |>
+  mutate(n_shots = n()) |> 
+  filter(n_shots >= 30) |> #setting a cut-off
+  ggplot(aes(x = shot_distance, y = fct_reorder(shot_type, n_shots))) + 
+  geom_density_ridges(rel_min_height = 0.01)
+```
+
+Taking a look at the distances of the shots using x and y coordinates. We are able to see a rough basketball court outline from the points. Using the package `hexbin` allows for the coordinates to be shaped into a hexagon and then heat-mapped to view frequency of shots in a specific area.
+
+```{r}
+wilson_shots |>
+  ggplot(aes(x = shot_x, y = shot_y)) +
+  geom_point(size = 4, alpha = 0.3)
+
+wilson_shots |>
+  ggplot(aes(x = shot_x, y = shot_y)) + 
+  geom_hex(binwidth = c(1, 1)) +
+  scale_fill_gradient(low = "navy", 
+                      high = "red") + 
+  theme(legend.position = "bottom") +
+  coord_fixed()
+```
+
+The package `sportyR` allows for a basketball court (along with other various courts) to be drawn and for the coordinate positions to be put on the court.
+
+```{r}
+wnba_court = geom_basketball("wnba", display_range = "offense", rotation = 270, x_trans = -41.5)
+wnba_court +
+  geom_hex(data = wilson_shots, aes(x = shot_x, y = shot_y), binwidth = c(1.5, 1.5)) + 
+  scale_fill_gradient(low = "midnightblue", high = "red")
+```
+
+## Lecture 6 Code: Unsupervised learning k-means clustering
+
+We strictly assign the observations to a cluster and we also call the number of cluster before completing the algorithm. We are looking at NCAA D1 volleyball teams from the 2022-2023 season.
+
+```{r}
+#| include: false
+library(gt)
+library(factoextra)
+d1_volleyball = read_csv("https://data.scorenetwork.org/data/volleyball_ncaa_div1_2022_23.csv")
+```
+
+Simple k-means example with 4 clusters
+
+```{r}
+init_kmeans <- d1_volleyball |> 
+  select(kills_per_set, blocks_per_set) |> 
+  kmeans(algorithm = "Lloyd", centers = 4,
+         nstart = 1, iter.max = 20)
+
+d1_volleyball |>
+  mutate(
+    team_clusters = as.factor(init_kmeans$cluster)
+  ) |>
+  ggplot(aes(x = blocks_per_set, y = kills_per_set,
+             color = team_clusters)) +
+  geom_point(size = 2) + 
+  ggthemes::scale_color_colorblind() +
+  theme(legend.position = "bottom") +
+  coord_fixed()
+```
+
+When doing k-means it is best to standardize the variables which sets the mean to 0 and the std to 1. Everytime we run a new k-means we will get a new clustering result.
+
+```{r}
+clean_d1_volleyball = d1_volleyball |>
+  mutate(
+    std_kills_per_set = as.numeric(scale(kills_per_set, center = TRUE, scale = TRUE)),
+    std_blocks_per_set = as.numeric(scale(blocks_per_set, center = TRUE, scale = TRUE))
+  )
+
+std_kmeans <- clean_d1_volleyball |> 
+  select(std_kills_per_set, std_blocks_per_set) |> 
+  kmeans(algorithm = "Lloyd", centers = 4, nstart = 1, iter.max = 30)
+
+clean_d1_volleyball |>
+  mutate(
+    team_clusters = as.factor(std_kmeans$cluster)
+  ) |>
+  ggplot(aes(x = blocks_per_set, y = kills_per_set,
+             color = team_clusters)) +
+  geom_point(size = 1) + 
+  ggthemes::scale_color_colorblind() +
+  theme(legend.position = "bottom") +
+  coord_fixed()
+```
+
+Clustering with more than 2 variables we create a table and compare.
+
+```{r}
+#| echo: false
+d1_volleyball_features <- d1_volleyball |>
+  select(blocks_per_set, digs_per_set, kills_per_set, aces_per_set) |> 
+  drop_na() 
+#scaling volleyball features so you don't have to mutate everything individually
+std_d1_volleyball_features <- d1_volleyball_features |> 
+  scale(center = TRUE, scale = TRUE)
+
+kmeans_many_features = std_d1_volleyball_features |> 
+  kmeans(algorithm = "Hartigan-Wong", centers = 4, nstart = 30) 
+
+#creating table of volleyball data
+clean_d1_volleyball |>
+  select(blocks_per_set, digs_per_set, kills_per_set, aces_per_set) |> 
+  mutate(team_clusters = as.factor(kmeans_many_features$cluster)) |> 
+  pivot_longer(-team_clusters, names_to = "feature", values_to = "value") |>
+  group_by(team_clusters, feature) |>
+  summarize(avg_value = base::mean(value), n_teams = n(), .groups = "drop") |>
+  pivot_wider(id_cols = c(team_clusters, n_teams), names_from = feature, values_from = avg_value) |>
+  gt() |>
+  fmt_number(columns = -n_teams, decimals = 2)
+```
+
+How to determine the number of clusters. You can create both an elbow plot and/or a silhouette plot using the `factoextra` package.
+
+```{r}
+clean_d1_volleyball |> 
+  dplyr::select(std_blocks_per_set, std_kills_per_set) |> 
+  fviz_nbclust(kmeans, method = "wss")
+
+clean_d1_volleyball |> 
+  select(std_blocks_per_set, std_kills_per_set) |> 
+  fviz_nbclust(kmeans, method = "silhouette")
+```
+
+## Lecture 7 Code: Unsupervised learning hierarchical clustering
