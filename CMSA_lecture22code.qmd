@@ -1,0 +1,206 @@
+---
+title: "CMSA Lecture 22"
+format: html
+editor: visual
+---
+
+```{r}
+#install.packages(c("DBI", "dittodb", "RSQLite", "nycflights13")) need to install all these
+library(DBI)
+library(dittodb)
+library(RSQLite)
+
+# establishing connection via sqlite
+# ":memory:" is a special path that creates an in-memory database
+# other database drivers require more details (like user, password, host, port, etc.)
+con_air = DBI::dbConnect(RSQLite::SQLite(), ":memory:") 
+# creates a database including a few tables from the nycflights13 dataset with con_air connection
+dittodb::nycflights13_create_sql(con_air)
+
+DBI::dbListTables(con_air) #gives what tables you have access to
+```
+Creating tables
+
+```{r}
+flights_tbl = tbl(con_air, "flights")
+dim(flights_tbl)  #head(flights_tbl, n = 3) 
+
+dist_sum = flights_tbl |>
+  summarize(min_year = min(distance), max_year = max(distance))
+
+show_query(dist_sum)
+```
+SQL Tables as tibble
+
+```{r}
+flights_tibble = flights_tbl |> dplyr::collect()
+
+# dim(flights_tibble)
+head(flights_tibble, n = 3)
+
+flights_tbl |>
+  object.size() |>
+  print(units = "Kb")
+
+flights_tibble |>
+  object.size() |>
+  print(units = "Kb")
+```
+
+Different ways to query on quarto
+
+```{r}
+flights_tbl |>
+  summarize(min_year = min(distance), max_year = max(distance)) # what we previously did
+
+DBI::dbGetQuery(con_air,
+                "SELECT MIN(distance) AS min_year,
+                MAX(distance) AS max_year
+                FROM flights")
+```
+```{sql connection= con_air}
+SELECT MIN(distance) AS min_year,
+       MAX(distance) AS max_year
+FROM flights
+```
+
+```{sql}
+--| connection: con_air
+
+SELECT * FROM flights LIMIT 10;
+```
+
+Using the Select function to get specific columns from data set
+```{sql connection=con_air}
+SELECT dep_time, arr_time, flight FROM flights LIMIT 10;
+```
+
+Getting average speed in miles per hour for each flight into a variable
+```{sql connection= con_air}
+SELECT flight, distance/(air_time/60) AS speed FROM flights LIMIT 10;
+```
+
+Aggregating on columns. Getting the minimum and maximum air time (in minutes) for flights.
+```{sql connection=con_air}
+SELECT MIN(air_time) AS min_ar, MAX(air_time) AS max_ar FROM flights;
+```
+
+Filtering an observation where conditions are met. Wanting only flights originating from  the JFK airport
+```{sql connection=con_air}
+SELECT * FROM flights WHERE origin = "JFK" LIMIT 10;
+```
+
+FIltering flights not originating in JFK
+```{sql connection=con_air}
+SELECT * FROM flights WHERE origin != "JFK" LIMIT 10;
+```
+
+Finding values in/not in a range.
+```{sql connection=con_air}
+SELECT * FROM flights WHERE tailnum IN ("N593JB", "N532UA") LIMIT 20;
+```
+```{sql connection=con_air}
+SELECT * FROM flights WHERE month NOT IN (1, 12) AND arr_delay > 120 LIMIT 10;
+```
+
+Missing values. Looking at how many observations have no wind gusts
+```{sql connection=con_air}
+SELECT COUNT(*) AS num_obs FROM weather WHERE wind_gust IS NULL;
+```
+
+Group by variables.
+```{sql connection=con_air}
+SELECT dest, month, day,
+       MIN(arr_delay) AS mnd,
+       MAX(arr_delay) AS mxd,
+       AVG(arr_delay) AS avd
+FROM flights
+GROUP BY dest, month, day
+LIMIT 10;
+
+```
+
+Filtered aggregated values with `having` function. `*` is to select all.
+```{sql connection=con_air}
+SELECT engines, COUNT(*) AS tot_num
+ FROM planes
+ GROUP BY engines
+ HAVING tot_num < 200;
+```
+
+Order By columns when displaying output
+```{sql connection=con_air}
+SELECT dest, month, day,
+       MIN(arr_delay) AS mnd,
+       MAX(arr_delay) AS mxd,
+       AVG(arr_delay) AS avd
+FROM flights
+GROUP BY dest, month, day
+ORDER BY dest, month DESC, day
+LIMIT 10;
+```
+
+Using the `distinct` function
+```{sql connection=con_air}
+SELECT DISTINCT carrier, flight FROM flights ORDER BY carrier, flight LIMIT 10;
+
+```
+
+using the `case when` function
+```{sql connection=con_air}
+SELECT year, month, day, arr_delay,
+       CASE WHEN arr_delay < 0 THEN "Early"
+       WHEN arr_delay = 0 THEN "On Time"
+       WHEN arr_delay > 0 THEN "Late"
+       ELSE "Unknown"
+  END AS delay_type
+FROM flights LIMIT 10;
+```
+
+Subqueries in SQL. Getting all destination codes that start with an M.
+```{sql connection=con_air}
+SELECT DISTINCT dest FROM flights WHERE dest LIKE "M%"
+```
+```{sql connection=con_air}
+SELECT dest, COUNT(*) as tot_flights
+ FROM flights
+ WHERE dest IN (SELECT DISTINCT dest FROM flights WHERE dest LIKE "M%")
+ GROUP BY dest
+
+```
+
+Relating information between tables in SQL. We're wanting to get the full carrier name not the carrier code. Able to do this with the `JOIN` function.
+```{sql connection=con_air}
+SELECT carrier, COUNT(*) as tot_flights
+ FROM flights
+ WHERE month IN (6, 7)
+ GROUP BY carrier
+```
+```{sql connection=con_air}
+SELECT al.name AS airline, COUNT(*) as tot_flights
+FROM flights AS fl
+LEFT JOIN airlines AS al
+  ON al.carrier = fl.carrier
+WHERE month IN (6, 7)
+GROUP BY al.name
+```
+
+Saving SQL Query outputs as R objects
+```{sql connection=con_air}
+--| output.var: tot_airline_flights
+SELECT al.name AS airline, COUNT(*) as tot_flights
+FROM flights AS fl
+LEFT JOIN airlines AS al
+  ON al.carrier = fl.carrier
+WHERE month IN (6, 7)
+GROUP BY al.name
+```
+```{r}
+head(tot_airline_flights, n = 3)
+```
+
+Terminated the SQL connection when finished
+```{r}
+DBI::dbDisconnect(con_air, shutdown = TRUE)
+```
+
