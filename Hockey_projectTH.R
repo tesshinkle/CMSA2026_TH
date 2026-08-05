@@ -4,6 +4,7 @@
 #score state: tied games or big score difference
 #look at OT?
 
+
 require(nhlscraper)
 ESPN_games_20242025 <- espn_games(season = 20242025)
 head(ESPN_games_20242025)

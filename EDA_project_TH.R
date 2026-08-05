@@ -24,6 +24,8 @@ wta_2021_2026_matches <-
 
 view(wta_2021_2026_matches)
 
+
+
 str(wta_2021_2026_matches)
 summary(wta_2021_2026_matches)
 
@@ -180,9 +182,21 @@ wta_long |>
   filter(ace < 30) |>
   ggplot(aes(x = ace, y = surface, fill = surface)) +
   geom_boxplot() +
-  labs(title = "Distribution of Aces by Court Surface",
-       x = "Total Aces per Match", y = "Surface type") +
+  labs(x = "Total Aces per Match", y = "Surface type") +
   theme_bw() + theme(legend.position = "none")
+
+ace_data |>
+  filter(total_aces<30) |>
+  ggplot(aes(x = total_aces, y = surface, fill = surface)) +
+  geom_boxplot(na.rm = TRUE) +
+  labs(x = "Total Aces per Match", 
+       y = "Surface Type") +
+  theme_bw() +
+  theme(legend.position = "none")
+
+favstats(total_aces~surface, data= ace_data)
+
+summary(aov(ace~surface, data = wta_long))
 
 summary(aov(total_aces~surface, data = ace_data))
 
@@ -213,12 +227,16 @@ wta_long = wta_long |>
           firstWon = `1stWon`,
           secWon = `2ndWon`)
 
-wta_long_table = wta_long |>
-  #as.data.frame() |>
-  select(surface, tournament, name, outcome, ht, ace, df, rank, age )|>
-  head(5) |>
+wta_long |>
+  select(surface, tournament, name, outcome, ht, ace, df,firstIn, rank, age )|>
+  head(n = 5) |>
   gt() |>
-  tab_header(title = "WTA 2021-2026 Data") 
+  tab_header(title = "WTA 2021-2026 Data") |>
+  tab_style(style = cell_fill(color = "darkolivegreen3"),
+            locations = cells_title()) |>
+  tab_style(style = cell_fill(color = "seashell"),
+            locations = cells_body())
+
 
 wta_long = wta_long |>
   select(surface, outcome:rank_points)
@@ -435,8 +453,7 @@ gt(tidy(wta_mclust)) |>
 wta_mclust |> #the larger points show a larger uncertainty in the cluster that they are in
   augment() |> 
   ggplot(aes(x = avg_ace, y = avg_rank, color = .class, size = .uncertainty)) +
-  geom_point(alpha = 0.6) + labs(title = "Clustering of Average Rank and Average Aces",
-                                 x = "Average Ace", y = "Average Rank")
+  geom_point(alpha = 0.6) + labs(x = "Average Ace", y = "Average Rank")
 
 wta_mclust |> #graph with clusters with circles
   plot(what = "classification")
@@ -469,3 +486,4 @@ wta_mclust2 |> #the larger points show a larger uncertainty in the cluster that 
 
 wta_mclust2 |> #graph with clusters with circles
   plot(what = "classification")
+
